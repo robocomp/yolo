@@ -1,0 +1,11 @@
+import "Yoloserver.idsl";
+
+Component yoloserver
+{
+	Communications
+	{
+		implements YoloServer;
+	};
+	language Cpp;
+	
+};

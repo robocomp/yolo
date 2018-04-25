@@ -1,0 +1,22 @@
+# Proxies for required interfaces
+YoloServerProxy = yoloserver:tcp -h pepe.local -p 11001
+
+
+# This property is used by the clients to connect to IceStorm.
+TopicManager.Proxy=IceStorm/TopicManager:default -p 9999
+
+
+#CameraURL = http://158.49.247.240:88/cgi-bin/CGIStream.cgi?cmd=GetMJStream&usr=admin&pwd=opticalflow
+CameraURL = http://158.49.247.184:88/cgi-bin/CGIStream.cgi?cmd=GetMJStream&usr=admin&pwd=opticalflow
+CameraURL = http://10.253.247.102:88/cgi-bin/CGIStream.cgi?cmd=GetMJStream&usr=admin&pwd=opticalflow
+CameraURL = http://10.253.247.108:88/cgi-bin/CGIStream.cgi?cmd=GetMJStream&usr=admin&pwd=opticalflow
+CameraURL = http://10.253.247.179:88/cgi-bin/CGIStream.cgi?cmd=GetMJStream&usr=admin&pwd=opticalflow
+
+
+Ice.MessageSizeMax = 1200000
+Ice.Warn.Connections=0
+Ice.Trace.Network=0
+Ice.Trace.Protocol=0
+
+Ice.ACM.Client=10
+Ice.ACM.Server=10

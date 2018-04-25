@@ -1,5 +1,5 @@
 /*
- *    Copyright (C)2017 by YOUR NAME HERE
+ *    Copyright (C)2018 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -27,7 +27,7 @@
 
 #include <CommonBehavior.h>
 
-#include <Yoloserver.h>
+#include <YoloServer.h>
 
 #define CHECK_PERIOD 5000
 #define BASIC_PERIOD 100

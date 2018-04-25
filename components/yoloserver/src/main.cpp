@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2017 by YOUR NAME HERE
+ *    Copyright (C) 2018 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -83,7 +83,7 @@
 
 #include <yoloserverI.h>
 
-#include <Yoloserver.h>
+#include <YoloServer.h>
 
 
 // User includes here

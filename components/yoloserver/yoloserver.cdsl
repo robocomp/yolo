@@ -1,4 +1,4 @@
-import "Yoloserver.idsl";
+import "YoloServer.idsl";
 
 Component yoloserver
 {

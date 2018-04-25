@@ -1,5 +1,5 @@
 /*
- *    Copyright (C)2017 by YOUR NAME HERE
+ *    Copyright (C)2018 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -21,7 +21,7 @@
 
 // Ice includes
 #include <Ice/Ice.h>
-#include <Yoloserver.h>
+#include <YoloServer.h>
 
 #include <config.h>
 #include "genericworker.h"

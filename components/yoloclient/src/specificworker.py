@@ -23,108 +23,89 @@ from genericworker import *
 import numpy as np
 import cv2
 import requests
-from camerareader import CameraReader
+#from camerareader import CameraReader
+
+class Cap:
+	def __init__(self, camera):
+		self.stream = requests.get(camera, stream=True)
+		
+	def read(self):
+		bytes = ''
+		for chunk in self.stream.iter_content(chunk_size=1024):
+			bytes += chunk
+			a = bytes.find(b'\xff\xd8')
+			b = bytes.find(b'\xff\xd9')
+			if a != -1 and b != -1:
+				jpg = bytes[a:b+2]
+				bytes = bytes[b+2:]
+				if len(jpg) > 0:
+					img = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+					return True, img
+				else:
+					return False, img
+
 
 class SpecificWorker(GenericWorker):
 	def __init__(self, proxy_map):
 		super(SpecificWorker, self).__init__(proxy_map)
-		# cv2.namedWindow("YOLO IA", cv2.WINDOW_AUTOSIZE)
-
+		
 	def setParams(self, params):
 		try:
-			par = params["CameraURL"]
-			print par
-			camera_url = par
-			print camera_url
-			#self.r = requests.get(
-			#	'http://158.49.247.240:88/cgi-bin/CGIStream.cgi?cmd=GetMJStream&usr=admin&pwd=opticalflow',
-			#	auth=('admin', 'opticalflow'), stream=True)
-			# self.r = requests.get(camera_url, auth=('admin', 'opticalflow'), stream=True)
-			self.r = requests.get(camera_url,  stream=True)
-
-			if self.r.status_code is not 200:
-				print "Chungo"
-
-			self.frameAnt = np.zeros((480, 640), np.uint8)
-
-			self.newImage = False
-
-			self.c = CameraReader(self.r)
-			self.c.start()
-			self.c.signalNewImage.connect(self.slotNewImage)
-
+			camera = params["Camera"]
+			if camera == "webcam":
+				camera = 0
+				self.cap = cv2.VideoCapture(camera)
+				print "camera", camera
+			else:
+				self.cap = Cap(camera)
+				
 			self.timer.timeout.connect(self.compute)
-			self.Period = 20
 			self.timer.start(self.Period)
-
+			self.fgbg = cv2.createBackgroundSubtractorMOG2()
+		
 		except:
 			traceback.print_exc()
 			print "Error reading config params"
-		return True
-
-	def initVideo(self):
-		try:
-			# self.vidFile = cv2.VideoCapture("http://158.49.247.184:88/cgi-bin/CGIProxy.fcgi?cmd=snapPicture2&usr=admin&pwd=opticalflow")
-			# self.vidFile = cv2.VideoCapture("rtsp://admin:opticalflow@158.49.247.240:88/videoMain")
-			# self.vidFile = cv2.VideoCapture(0)
-			# self.vidFile = cv2.VideoCapture("http://158.49.247.184:88/cgi-bin/CGIStream.cgi?cmd=GetMJStream&usr=admin&pwd=opticalflow")
-			# self.vidFile = cv2.VideoCapture("http://158.49.247.240:88/cgi-bin/CGIStream.cgi?cmd=GetMJStream&usr=administrador&pwd=admin")
-			# self.ipc = ipCamera('http://158.49.247.240:88/cgi-bin/CGIStream.cgi?cmd=GetMJStream&usr=admin&pwd=opticalflow', user="admin", password="opticalflow")
-			pass
-		except:
-			print "problem opening input stream"
-			sys.exit(1)
+			sys.exit()
+			
+	
 
 	@QtCore.Slot()
 	def compute(self):
-		print "----------------------------------"
-		if self.newImage is True:
+		print "---------------------------"
+		ret, frame = self.cap.read()
+		frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+		
+		fgmask = self.fgbg.apply(frame)
+		kernel = np.ones((5,5),np.uint8)
+		erode = cv2.erode(fgmask, kernel, iterations = 2)
+		dilate = cv2.dilate(erode, kernel, iterations = 2)
+		#k = cv2.waitKey(1)
+		
+		if cv2.countNonZero(dilate) > 100:
 			start = time.time()
-			img = self.c.img
-			labels =[]
-			thresImg, moving = self.checkMovement(img)
-			if moving:
-				labels = self.processFrame(img)
-				self.drawImage(img, labels)
-
-			self.newImage = False
+			labels = self.processFrame(frame)
+			self.drawImage(frame, labels)
 			end = time.time()
 			print "elapsed", (end - start) * 1000
 
-	def checkMovement(self, frame):
-		if frame is None:
-			return np.zeros((480, 640), np.uint8), False
-		gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-		gray = cv2.GaussianBlur(gray, (21, 21), 0)
-		frameDelta = cv2.absdiff(self.frameAnt, gray)
-		thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
-		nonZero = cv2.countNonZero(thresh)
-		print nonZero
-		self.frameAnt = gray
-		return thresh, nonZero > 10
 
-	def processFrame(self, frame):
-		img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+	def processFrame(self, img):
 #		img = cv2.resize(img,(608,608))
-#		img = cv2.resize(img,(320,240))
 		im = Image()
 		im.w = img.shape[1]
 		im.h = img.shape[0]
-		#print 'w', im.w, 'h', im.h
-		im.data = []
 		im.data = img.tostring()
 		try:
 			# Send image to server
 			id = self.yoloserver_proxy.addImage(im)
-			#print "id asignado por servidor: ", id
-
 			# Waiting for result+
 			while True:
 				labels = self.yoloserver_proxy.getData(id)
 				if labels.isReady:
 					break
 				else:
-					time.sleep(0.01);
+					time.sleep(0.001);					
 			return labels
 
 		except  Exception as e:

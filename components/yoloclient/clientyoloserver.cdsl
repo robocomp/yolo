@@ -1,4 +1,4 @@
-import "/robocomp/interfaces/IDSLs/Yoloserver.idsl";
+import "YoloServer.idsl";
 
 Component clientyoloserver
 {

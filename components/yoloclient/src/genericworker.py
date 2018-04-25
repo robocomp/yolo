@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2017 by YOUR NAME HERE
+# Copyright (C) 2018 by YOUR NAME HERE
 #
 #    This file is part of RoboComp
 #
@@ -17,7 +17,7 @@
 #    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys, Ice, os
-from PySide import *
+from PySide import QtGui, QtCore
 
 ROBOCOMP = ''
 try:
@@ -30,9 +30,31 @@ preStr = "-I/opt/robocomp/interfaces/ -I"+ROBOCOMP+"/interfaces/ --all /opt/robo
 Ice.loadSlice(preStr+"CommonBehavior.ice")
 import RoboCompCommonBehavior
 
-preStr = "-I/opt/robocomp/interfaces/ -I"+ROBOCOMP+"/interfaces/ --all /opt/robocomp/interfaces/"
-Ice.loadSlice(preStr+"Yoloserver.ice")
+additionalPathStr = ''
+icePaths = [ '/opt/robocomp/interfaces' ]
+try:
+	SLICE_PATH = os.environ['SLICE_PATH'].split(':')
+	for p in SLICE_PATH:
+		icePaths.append(p)
+		additionalPathStr += ' -I' + p + ' '
+	icePaths.append('/opt/robocomp/interfaces')
+except:
+	print 'SLICE_PATH environment variable was not exported. Using only the default paths'
+	pass
+
+ice_YoloServer = False
+for p in icePaths:
+	if os.path.isfile(p+'/YoloServer.ice'):
+		preStr = "-I/opt/robocomp/interfaces/ -I"+ROBOCOMP+"/interfaces/ " + additionalPathStr + " --all "+p+'/'
+		wholeStr = preStr+"YoloServer.ice"
+		Ice.loadSlice(wholeStr)
+		ice_YoloServer = True
+		break
+if not ice_YoloServer:
+	print 'Couln\'t load YoloServer'
+	sys.exit(-1)
 from RoboCompYoloServer import *
+
 
 
 try:
@@ -53,9 +75,9 @@ class GenericWorker(QtGui.QWidget):
 		self.yoloserver_proxy = mprx["YoloServerProxy"]
 		self.ui = Ui_guiDlg()
 		self.ui.setupUi(self)
-		# self.show()
-		
-		
+		self.show()
+
+
 		self.mutex = QtCore.QMutex(QtCore.QMutex.Recursive)
 		self.Period = 30
 		self.timer = QtCore.QTimer(self)

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2017 by YOUR NAME HERE
+# Copyright (C) 2018 by YOUR NAME HERE
 #
 #    This file is part of RoboComp
 #
@@ -60,7 +60,7 @@ import sys, traceback, IceStorm, subprocess, threading, time, Queue, os, copy
 # Ctrl+c handling
 import signal
 
-from PySide import *
+from PySide import QtGui, QtCore
 
 from specificworker import *
 
@@ -103,18 +103,8 @@ if __name__ == '__main__':
 	status = 0
 	mprx = {}
 	parameters = {}
-	print ic.getProperties()
 	for i in ic.getProperties():
 		parameters[str(i)] = str(ic.getProperties().getProperty(i))
-
-	# Topic Manager
-	proxy = ic.getProperties().getProperty("TopicManager.Proxy")
-	obj = ic.stringToProxy(proxy)
-	try:
-		topicManager = IceStorm.TopicManagerPrx.checkedCast(obj)
-	except Ice.ConnectionRefusedException, e:
-		print 'Cannot connect to IceStorm! ('+proxy+')'
-		sys.exit(-1)
 
 	# Remote object connection for YoloServer
 	try:

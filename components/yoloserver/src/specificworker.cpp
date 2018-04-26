@@ -54,16 +54,16 @@ void SpecificWorker::compute()
     
 	if(lImgs.isEmpty() == false)
 	{
-//                 QTime reloj = QTime::currentTime();
-                 QTime relojT = QTime::currentTime();
+        QTime reloj = QTime::currentTime();
+	//	QTime relojT = QTime::currentTime();
                 
-//                 qDebug() << "----------------------------------------------";
+//      qDebug() << "----------------------------------------------";
 		image localImage = createImage( lImgs.pop(id) );
-//                 qDebug() << __FUNCTION__ << "elapsed image" << reloj.elapsed(); reloj.restart();
+        qDebug() << __FUNCTION__ << "elapsed image" << reloj.elapsed(); 
 		ResultDetect r = test_detector(.24, .5, localImage);
-//                 qDebug() << __FUNCTION__  << "elapsed detector" << reloj.elapsed(); reloj.restart();
+        qDebug() << __FUNCTION__  << "elapsed detector" << reloj.elapsed();
 		processDetections(id, localImage, r.num, r.thresh, r.boxes, r.probs, r.names, r.classes);
-                qDebug() << __FUNCTION__ <<  "elapsed TOTAL " << relojT.elapsed();
+        qDebug() << __FUNCTION__ <<  "elapsed TOTAL " << reloj.elapsed(); reloj.restart();
 		
 	}
 }

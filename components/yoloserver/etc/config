@@ -1,4 +1,4 @@
-CommonBehavior.Endpoints=tcp -p 11000
+CommonBehavior.Endpoints=tcp -p 11002
 
 
 # Endpoints for implemented interfaces

@@ -622,12 +622,12 @@ typedef struct
 
 ResultDetect test_detector(float thresh, float hier_thresh, char *outfile, int fullscreen, image im)
 {
-        //time1=clock();
+        time1=clock();
     
         image sized = letterbox_image(im, net.w, net.h);
         
-        //printf("Letterbox elapsed %f mseconds.\n", sec(clock()-time1)*1000);
-        //time1=clock();
+        printf("Letterbox elapsed %f mseconds.\n", sec(clock()-time1)*1000);
+        time1=clock();
       
         layer l = net.layers[net.n-1];
 
@@ -635,21 +635,21 @@ ResultDetect test_detector(float thresh, float hier_thresh, char *outfile, int f
         float **probs = calloc(l.w*l.h*l.n, sizeof(float *));
         for(j = 0; j < l.w*l.h*l.n; ++j) probs[j] = calloc(l.classes + 1, sizeof(float *));
 
-        //printf("%s: AA -Predicted in %f seconds.\n", input, sec(clock()-time1));
-        //time1=clock();
+        printf("%s: AA -Predicted in %f seconds.\n", input, sec(clock()-time1));
+        time1=clock();
         
         //image sized = make_image(im.w, im.h, im.c);
         //memcpy(sized.data, im.data, sizeof(float)*im.w*im.h*im.c);
         network_predict(net, sized.data);
         
         
-        //printf("Test-Detector: Network-predict elapsed in %f mseconds.\n",sec(clock()-time1)*1000);
-        //time1=clock();
+        printf("Test-Detector: Network-predict elapsed in %f mseconds.\n",sec(clock()-time1)*1000);
+        time1=clock();
         
         get_region_boxes(l, im.w, im.h, net.w, net.h, thresh, probs, boxes, 0, 0, hier_thresh, 1);
         
-        //printf("Test-Detector: GetBoxes elapsed in %f mseconds.\n", sec(clock()-time1)*1000);
-        //time1=clock();
+        printf("Test-Detector: GetBoxes elapsed in %f mseconds.\n", sec(clock()-time1)*1000);
+        time1=clock();
         
         if (nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
         //else if (nms) do_nms_sort(boxes, probs, l.w*l.h*l.n, l.classes, nms);

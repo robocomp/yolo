@@ -23,31 +23,36 @@ from genericworker import *
 import numpy as np
 import cv2
 import requests
+import Queue, threading
 #from camerareader import CameraReader
 
-class Cap:
-	def __init__(self, camera):
+class Cap(threading.Thread):
+	def __init__(self, camera, myqueue):
+		super(Cap,self).__init__()
 		self.stream = requests.get(camera, stream=True)
+		self.myqueue = myqueue
+		if self.stream.status_code is not 200:
+			print "Error connecting to stream ", camera
+			sys.exit(1)
 		
-	def read(self):
-		bytes = ''
+	def run(self):
+		byte = bytes()
 		for chunk in self.stream.iter_content(chunk_size=1024):
-			bytes += chunk
-			a = bytes.find(b'\xff\xd8')
-			b = bytes.find(b'\xff\xd9')
+			byte += chunk
+			a = byte.find(b'\xff\xd8')
+			b = byte.find(b'\xff\xd9')
 			if a != -1 and b != -1:
-				jpg = bytes[a:b+2]
-				bytes = bytes[b+2:]
+				jpg = byte[a:b+2]
+				byte = byte[b+2:]
 				if len(jpg) > 0:
 					img = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
-					return True, img
-				else:
-					return False, img
+					self.myqueue.put(img)	
 
 
 class SpecificWorker(GenericWorker):
 	def __init__(self, proxy_map):
 		super(SpecificWorker, self).__init__(proxy_map)
+		self.myqueue = Queue.Queue()
 		
 	def setParams(self, params):
 		try:
@@ -55,43 +60,37 @@ class SpecificWorker(GenericWorker):
 			if camera == "webcam":
 				camera = 0
 				self.cap = cv2.VideoCapture(camera)
-				print "camera", camera
 			else:
-				self.cap = Cap(camera)
+				self.cap = Cap(camera, self.myqueue)
+				self.cap.start()
 				
-			self.timer.timeout.connect(self.compute)
-			self.timer.start(self.Period)
 			self.fgbg = cv2.createBackgroundSubtractorMOG2()
+			self.timer.timeout.connect(self.compute)
+			self.Period = 5
+			self.timer.start(self.Period)
 		
 		except:
 			traceback.print_exc()
 			print "Error reading config params"
 			sys.exit()
 			
-	
-
 	@QtCore.Slot()
 	def compute(self):
-		print "---------------------------"
-		ret, frame = self.cap.read()
-		frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-		
+		start = time.time()
+		frame = cv2.cvtColor(self.myqueue.get(), cv2.COLOR_BGR2RGB)
 		fgmask = self.fgbg.apply(frame)
 		kernel = np.ones((5,5),np.uint8)
 		erode = cv2.erode(fgmask, kernel, iterations = 2)
 		dilate = cv2.dilate(erode, kernel, iterations = 2)
-		#k = cv2.waitKey(1)
 		
 		if cv2.countNonZero(dilate) > 100:
-			start = time.time()
 			labels = self.processFrame(frame)
 			self.drawImage(frame, labels)
-			end = time.time()
-			print "elapsed", (end - start) * 1000
-
+		ms = int((time.time() - start) * 1000)
+		print "elapsed", ms, " ms. FPS: ", int(1000/ms)
 
 	def processFrame(self, img):
-#		img = cv2.resize(img,(608,608))
+		img = cv2.resize(img,(608,608))
 		im = Image()
 		im.w = img.shape[1]
 		im.h = img.shape[0]
@@ -123,10 +122,3 @@ class SpecificWorker(GenericWorker):
 					cv2.putText(img, box.label + " " + str(int(box.prob)) + "%", pt, font, 1, (255, 255, 255), 2)
 		cv2.imshow('Image', img);
 		cv2.waitKey(2);
-
-	@QtCore.Slot(str)
-	def slotNewImage(self):
-		self.newImage=True
-	#	cv2.imshow('i', self.c.img)
-	#	if cv2.waitKey(1) == 27:
-	#		exit(0)

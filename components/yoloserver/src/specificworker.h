@@ -86,12 +86,10 @@ private:
 //			id = 0;
 //			id_first = 0;
 //		};
-		unsigned int push(Image img)
+		unsigned int push(const Image &img)
 		{
 				QMutexLocker locker(&mlist);
-				//memset(&img.data[0],         0, img.w*3);
-//				memset(&img.data[img.w*3], 255, img.w*3);
-				map_imgs[id] = img;
+				map_imgs.emplace(id, img);
 				id++;
 				//qDebug() << __FUNCTION__ << "id" << id << "id_first" << id_first;
 				return id-1;
@@ -99,7 +97,7 @@ private:
 		Image pop(int &current)
 		{
 			QMutexLocker locker(&mlist);
-			Image img = map_imgs.at(id_first);
+			const Image &img = std::move(map_imgs.at(id_first));
 			current = id_first;
 			map_imgs.erase(id_first);
 			id_first++;

@@ -846,7 +846,6 @@ void letterbox_image_into(image im, int w, int h, image boxed)
 
 image letterbox_image(image im, int w, int h)
 {
-    clock_t time1=clock();
     clock_t time2=clock();
     
     int new_w = im.w;
@@ -855,7 +854,6 @@ image letterbox_image(image im, int w, int h)
     image boxed = make_image(w, h, im.c);
     fill_image(boxed, .5);
     
-    printf("letterbox_image: Tamaios: %d %d %d %d \n", im.w, im.h, w, h);
     
     if (((float)w/im.w) < ((float)h/im.h)) 
     {
@@ -867,9 +865,22 @@ image letterbox_image(image im, int w, int h)
         new_h = h;
         new_w = (im.w * h)/im.h;
     }
-    image resized = resize_image(im, new_w, new_h);
-    embed_image(resized, boxed, (w-new_w)/2, (h-new_h)/2); 
-    free_image(resized);
+    printf("letterbox_image: Tamaios: %d %d %d %d %d %d\n", im.w, im.h, w, h, new_w, new_h);
+ 
+    clock_t time1=clock();
+ 
+	image resized;
+	if( im.w != w || im.h != h )
+	{
+		resized = resize_image(im, new_w, new_h);
+		embed_image(resized, boxed, (w-new_w)/2, (h-new_h)/2); 
+		free_image(resized);
+	}
+	else
+	{
+		embed_image(im, boxed, (w-new_w)/2, (h-new_h)/2); 
+	}
+		
     
     printf("Letterbox- elapsed in resizing in %f.3 mseconds.\n", sec(clock()-time1)*1000);
     time1=clock();

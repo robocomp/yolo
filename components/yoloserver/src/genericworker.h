@@ -20,7 +20,7 @@
 #define GENERICWORKER_H
 
 #include "config.h"
-#include <QtGui>
+//#include <QtGui>
 #include <stdint.h>
 #include <qlog/qlog.h>
 
@@ -34,7 +34,7 @@
 
 typedef map <string,::IceProxy::Ice::Object*> MapPrx;
 
-using namespace std;
+//using namespace std;
 
 using namespace RoboCompYoloServer;
 
@@ -55,9 +55,9 @@ public:
 	QMutex *mutex;
 
 
+	YoloPublishObjectsPrx yolopublishobjects_proxy;
 
-	virtual int addImage(const Image &img) = 0;
-	virtual Labels getData(const int id) = 0;
+	virtual int processImage(const TImage &img) = 0;
 
 protected:
 	QTimer timer;

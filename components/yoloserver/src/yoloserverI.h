@@ -34,8 +34,7 @@ public:
 YoloServerI(GenericWorker *_worker);
 	~YoloServerI();
 
-	int addImage(const Image  &img, const Ice::Current&);
-	Labels getData(const int  id, const Ice::Current&);
+	int processImage(const TImage  &img, const Ice::Current&);
 
 private:
 

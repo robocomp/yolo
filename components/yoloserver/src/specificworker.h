@@ -33,147 +33,89 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-extern "C" {
-#include <yololib/src/image.h>	
-
-
-typedef struct
+namespace yolo
 {
-        int num;
-        float  thresh;
-        box *boxes;
-        float **probs;
-        char **names;
-        int classes;
-} ResultDetect;
+	extern "C" 
+	{
+		#include </home/pbustos/software/darknet/src/image.h>	
+		typedef struct
+		{
+						int num;
+						float  thresh;
+						box *boxes;
+						float **probs;
+						char **names;
+						int classes;
+		} ResultDetect;
 
-    ResultDetect test_detector(float thresh, float hier_thresh, image im);
-    void init_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename,float thresh, float hier_thresh);
-    image make_image(int w, int h, int c);
-    int max_index(float *a, int n);
+		ResultDetect test_detector(float thresh, float hier_thresh, image im);
+		void init_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename,float thresh, float hier_thresh);
+		image make_image(int w, int h, int c);
+		int max_index(float *a, int n);
+	}
+}
+	class SpecificWorker : public GenericWorker
+	{
+		Q_OBJECT
+		public:
+			SpecificWorker(MapPrx& mprx);
+			~SpecificWorker();
+			bool setParams(RoboCompCommonBehavior::ParameterList params);
+			int processImage(const TImage &img);
+			
+		public slots:
+			void compute();
+
+		private:
+			yolo::image createImage(const TImage& src);
+			void processDetections(int &id, image im, int num, float thresh, box *boxes, float **probs, char **names, int classes);
+			void drawImage(image im);
+
+		struct ListImg
+		{
+			unsigned int id=0, id_first=0;
+			QMutex mlist;
+			std::map<int, TImage> map_imgs;
+			unsigned int push(const TImage &img)
+			{
+					QMutexLocker locker(&mlist);
+					map_imgs.emplace(id, img);
+					id++;
+					//qDebug() << __FUNCTION__ << "id" << id << "id_first" << id_first;
+					return id-1;
+			};
+			TImage pop(int &current)
+			{
+				QMutexLocker locker(&mlist);
+				const TImage &img = std::move(map_imgs.at(id_first));
+				current = id_first;
+				map_imgs.erase(id_first);
+				id_first++;
+				return img;
+			};
+			TImage get(unsigned int id)
+			{
+				QMutexLocker locker(&mlist);
+				return map_imgs.at(id);
+			};
+
+			bool isEmpty()
+			{
+				QMutexLocker locker(&mlist);
+				return map_imgs.size()==0;
+			};
+
+			unsigned int size()
+			{
+				QMutexLocker locker(&mlist);
+				return map_imgs.size();
+			};
+		};
 
 	
-}
+		ListImg lImgs;
+		InnerModel innerModel;
 
-class SpecificWorker : public GenericWorker
-{
-Q_OBJECT
-public:
-	SpecificWorker(MapPrx& mprx);
-	~SpecificWorker();
-	bool setParams(RoboCompCommonBehavior::ParameterList params);
-
-	int addImage(const Image &img);
-	Labels getData(const int id);
-
-public slots:
-	void compute();
-
-private:
-
-
-        image createImage(const Image& src);
-	void processDetections(int &id, image im, int num, float thresh, box *boxes, float **probs, char **names, int classes);
-	void drawImage(image im);
-
-	struct ListImg
-	{
-		unsigned int id=0, id_first=0;
-		QMutex mlist;
-		std::map<int, Image> map_imgs;
-//		ListImg()
-//		{
-//			id = 0;
-//			id_first = 0;
-//		};
-		unsigned int push(const Image &img)
-		{
-				QMutexLocker locker(&mlist);
-				map_imgs.emplace(id, img);
-				id++;
-				//qDebug() << __FUNCTION__ << "id" << id << "id_first" << id_first;
-				return id-1;
-		};
-		Image pop(int &current)
-		{
-			QMutexLocker locker(&mlist);
-			const Image &img = std::move(map_imgs.at(id_first));
-			current = id_first;
-			map_imgs.erase(id_first);
-			id_first++;
-			return img;
-		};
-		Image get(unsigned int id)
-		{
-			QMutexLocker locker(&mlist);
-			return map_imgs.at(id);
-		};
-
-		bool isEmpty()
-		{
-			QMutexLocker locker(&mlist);
-			return map_imgs.size()==0;
-		};
-
-		unsigned int size()
-		{
-			QMutexLocker locker(&mlist);
-			return map_imgs.size();
-		};
 	};
-
-	struct ListBoxs
-	{
-		QMutex mlist;
-		std::map<unsigned int, ListBox> map_Box;
-
-		void push(ListBox lBox, unsigned int id)
-		{
-			QMutexLocker locker(&mlist);
-			map_Box[id] = lBox;
-		};
-
-		ListBox get(unsigned int id)
-		{
-			QMutexLocker locker(&mlist);
-			return map_Box.at(id);
-		};
-
-		void erase(unsigned int id)
-		{
-			QMutexLocker locker(&mlist);
-			map_Box.erase(id);
-		};
-		bool isEmpty()
-		{
-			QMutexLocker locker(&mlist);
-			return map_Box.size()==0;
-		};
-
-		unsigned int size()
-		{
-			QMutexLocker locker(&mlist);
-			return map_Box.size();
-		};
-		bool find(unsigned int id)
-		{
-			QMutexLocker locker(&mlist);
-			try
-			{
-				map_Box.at(id);
-				return true;
-			}
-			catch(...)
-			{
-				return false;
-			}
-		};
-	};
-
-	ListBoxs lBoxs;
-	ListImg lImgs;
-	InnerModel *innerModel;
-
-};
 
 #endif

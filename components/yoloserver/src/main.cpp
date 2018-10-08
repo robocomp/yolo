@@ -131,9 +131,43 @@ int ::yoloserver::run(int argc, char* argv[])
 
 	int status=EXIT_SUCCESS;
 
+	YoloPublishObjectsPrx yolopublishobjects_proxy;
 
 	string proxy, tmp;
 	initialize();
+
+	IceStorm::TopicManagerPrx topicManager;
+	try
+	{
+		topicManager = IceStorm::TopicManagerPrx::checkedCast(communicator()->propertyToProxy("TopicManager.Proxy"));
+	}
+	catch (const Ice::Exception &ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception: STORM not running: " << ex << endl;
+		return EXIT_FAILURE;
+	}
+
+	IceStorm::TopicPrx yolopublishobjects_topic;
+	while (!yolopublishobjects_topic)
+	{
+		try
+		{
+			yolopublishobjects_topic = topicManager->retrieve("YoloPublishObjects");
+		}
+		catch (const IceStorm::NoSuchTopic&)
+		{
+			try
+			{
+				yolopublishobjects_topic = topicManager->create("YoloPublishObjects");
+			}
+			catch (const IceStorm::TopicExists&){
+				// Another client created the topic.
+			}
+		}
+	}
+	Ice::ObjectPrx yolopublishobjects_pub = yolopublishobjects_topic->getPublisher()->ice_oneway();
+	YoloPublishObjectsPrx yolopublishobjects = YoloPublishObjectsPrx::uncheckedCast(yolopublishobjects_pub);
+	mprx["YoloPublishObjectsPub"] = (::IceProxy::Ice::Object*)(&yolopublishobjects);
 
 
 

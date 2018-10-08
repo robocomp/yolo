@@ -13,16 +13,16 @@ SET ( HEADERS
   specificmonitor.h
 )
 
-add_definitions(-O4 -g)
+add_definitions(-O4 -I/home/pbustos/software/darknet/include/ -I/home/pbustos/software/darknet/src/)
 
 
 #SET (LIBS -L/usr/local/cuda/lib64 -lcuda -lcudart -lcublas -lcurand ${LIBS} -L/usr/local/cuda/lib64 -lcuda -lcudart -lcublas -lcurand)
 
-SET (LIBS -lopencv_objdetect -lopencv_features2d -lopencv_imgproc -lopencv_highgui -lopencv_core  -L/home/robolab/smartpolitech/yoloserver/src/yololib -lyolo)
+SET (LIBS -lopencv_objdetect -lopencv_features2d -lopencv_imgproc -lopencv_highgui -lopencv_core -ldarknet)
 
 #SET (LIBS -L/home/robolab/smartpolitech/yoloserver/src/yololib -lyolo)
 
 
 #ADD_DEFINITIONS( -std=c++11 -I/usr/local/cuda/include/ -DOPENCV -DCUDA)
 
-ADD_DEFINITIONS( -std=c++11 )
+ADD_DEFINITIONS( -std=c++17 )

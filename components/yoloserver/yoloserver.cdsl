@@ -5,6 +5,7 @@ Component yoloserver
 	Communications
 	{
 		implements YoloServer;
+		publishes  YoloPublishObjects;
 	};
 	language Cpp;
 	

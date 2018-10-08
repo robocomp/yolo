@@ -28,13 +28,8 @@ YoloServerI::~YoloServerI()
 {
 }
 
-int YoloServerI::addImage(const Image  &img, const Ice::Current&)
+int YoloServerI::processImage(const TImage  &img, const Ice::Current&)
 {
-	return worker->addImage(img);
-}
-
-Labels YoloServerI::getData(const int  id, const Ice::Current&)
-{
-	return worker->getData(id);
+	return worker->processImage(img);
 }
 

@@ -1,6 +1,6 @@
 # yolo
 
-A Yolo server and client for RoboComp
+A YoloV3 server and client for RoboComp
 
 
 Installing Yolo (see https://pjreddie.com/darknet/yolo/)

@@ -106,6 +106,15 @@ if __name__ == '__main__':
 	for i in ic.getProperties():
 		parameters[str(i)] = str(ic.getProperties().getProperty(i))
 
+	# Topic Manager
+	proxy = ic.getProperties().getProperty("TopicManager.Proxy")
+	obj = ic.stringToProxy(proxy)
+	try:
+		topicManager = IceStorm.TopicManagerPrx.checkedCast(obj)
+	except Ice.ConnectionRefusedException, e:
+		print 'Cannot connect to IceStorm! ('+proxy+')'
+		sys.exit(-1)
+
 	# Remote object connection for YoloServer
 	try:
 		proxyString = ic.getProperties().getProperty('YoloServerProxy')
@@ -125,6 +134,24 @@ if __name__ == '__main__':
 	if status == 0:
 		worker = SpecificWorker(mprx)
 		worker.setParams(parameters)
+
+	YoloPublishObjects_adapter = ic.createObjectAdapter("YoloPublishObjectsTopic")
+	yolopublishobjectsI_ = YoloPublishObjectsI(worker)
+	yolopublishobjects_proxy = YoloPublishObjects_adapter.addWithUUID(yolopublishobjectsI_).ice_oneway()
+
+	subscribeDone = False
+	while not subscribeDone:
+		try:
+			yolopublishobjects_topic = topicManager.retrieve("YoloPublishObjects")
+			subscribeDone = True
+		except Ice.Exception, e:
+			print "Error. Topic does not exist (yet)"
+			status = 0
+			time.sleep(1)
+	qos = {}
+	yolopublishobjects_topic.subscribeAndGetPublisher(qos, yolopublishobjects_proxy)
+	YoloPublishObjects_adapter.activate()
+
 
 	signal.signal(signal.SIGINT, signal.SIG_DFL)
 	app.exec_()

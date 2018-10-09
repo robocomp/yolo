@@ -32,26 +32,35 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <mutex>
 
 namespace yolo
 {
 	extern "C" 
 	{
-		#include </home/pbustos/software/darknet/src/image.h>	
-		typedef struct
-		{
-						int num;
-						float  thresh;
-						box *boxes;
-						float **probs;
-						char **names;
-						int classes;
-		} ResultDetect;
+		#include "/home/pbustos/software/darknet/include/darknet.h"	
+// 		typedef struct
+// 		{
+// 						int num;
+// 						float  thresh;
+// 						box *boxes;
+// 						float **probs;
+// 						char **names;
+// 						int classes;
+// 		} ResultDetect;
+		
+// 		typedef struct detection
+// 		{
+// 			box bbox;
+// 			int classes;
+// 			float *prob;
+// 			float *mask;
+// 			float objectness;
+// 			int sort_class;
+// 	    } detection;
 
-		ResultDetect test_detector(float thresh, float hier_thresh, image im);
-		void init_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename,float thresh, float hier_thresh);
-		image make_image(int w, int h, int c);
-		int max_index(float *a, int n);
+		void init_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename,float thresh, float hier_thresh, char **names);
+		detection* detector(float thresh, float hier_thresh, image im, int *numboxes);
 	}
 }
 	class SpecificWorker : public GenericWorker
@@ -68,25 +77,23 @@ namespace yolo
 
 		private:
 			yolo::image createImage(const TImage& src);
-			void processDetections(int &id, image im, int num, float thresh, box *boxes, float **probs, char **names, int classes);
-			void drawImage(image im);
-
+			void processDetections(int &id, yolo::image im, yolo::detection *dets, int numboxes);
+			
 		struct ListImg
 		{
 			unsigned int id=0, id_first=0;
-			QMutex mlist;
+			std::mutex mut;
 			std::map<int, TImage> map_imgs;
 			unsigned int push(const TImage &img)
 			{
-					QMutexLocker locker(&mlist);
+					std::lock_guard<std::mutex> lock(mut);
 					map_imgs.emplace(id, img);
 					id++;
-					//qDebug() << __FUNCTION__ << "id" << id << "id_first" << id_first;
 					return id-1;
 			};
 			TImage pop(int &current)
 			{
-				QMutexLocker locker(&mlist);
+				std::lock_guard<std::mutex> lock(mut);
 				const TImage &img = std::move(map_imgs.at(id_first));
 				current = id_first;
 				map_imgs.erase(id_first);
@@ -95,19 +102,19 @@ namespace yolo
 			};
 			TImage get(unsigned int id)
 			{
-				QMutexLocker locker(&mlist);
+				std::lock_guard<std::mutex> lock(mut);
 				return map_imgs.at(id);
 			};
 
-			bool isEmpty()
+			inline bool isEmpty()
 			{
-				QMutexLocker locker(&mlist);
+				std::lock_guard<std::mutex> lock(mut);
 				return map_imgs.size()==0;
 			};
 
 			unsigned int size()
 			{
-				QMutexLocker locker(&mlist);
+				std::lock_guard<std::mutex> lock(mut);
 				return map_imgs.size();
 			};
 		};
@@ -115,6 +122,7 @@ namespace yolo
 	
 		ListImg lImgs;
 		InnerModel innerModel;
+		char **names;
 
 	};
 

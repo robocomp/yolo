@@ -53,13 +53,17 @@ class SpecificWorker(GenericWorker):
 	def __init__(self, proxy_map):
 		super(SpecificWorker, self).__init__(proxy_map)
 		self.myqueue = Queue.Queue()
-		
+		self.sem = True
+		self.labels = []
+		self.myid = -1
+	
 	def setParams(self, params):
 		try:
 			camera = params["Camera"]
 			if camera == "webcam":
 				camera = 0
 				self.cap = cv2.VideoCapture(camera)
+				
 			else:
 				self.cap = Cap(camera, self.myqueue)
 				self.cap.start()
@@ -76,40 +80,42 @@ class SpecificWorker(GenericWorker):
 			
 	@QtCore.Slot()
 	def compute(self):
-		start = time.time()
-		frame = cv2.cvtColor(self.myqueue.get(), cv2.COLOR_BGR2RGB)
-		fgmask = self.fgbg.apply(frame)
-		kernel = np.ones((5,5),np.uint8)
-		erode = cv2.erode(fgmask, kernel, iterations = 2)
-		dilate = cv2.dilate(erode, kernel, iterations = 2)
-		
-		if cv2.countNonZero(dilate) > 100:
-			labels = self.processFrame(frame)
-			self.drawImage(frame, labels)
-		ms = int((time.time() - start) * 1000)
-		print "elapsed", ms, " ms. FPS: ", int(1000/ms)
+		if self.sem:
+			start = time.time()
+			#frame = cv2.cvtColor(self.myqueue.get(), cv2.COLOR_BGR2RGB)
+			ret, frame = self.cap.read();
+			frame = cv2.resize(frame,(608,608))
+			frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+			fgmask = self.fgbg.apply(frame)
+			kernel = np.ones((5,5),np.uint8)
+			erode = cv2.erode(fgmask, kernel, iterations = 2)
+			dilate = cv2.dilate(erode, kernel, iterations = 2)
+			
+			#if cv2.countNonZero(dilate) > 0:
+			
+			self.myid = self.processFrame(frame)
+			self.sem = False
+			
+			self.drawImage(frame, self.labels)
+			
+			#if self.sem:
+				#ms = int((time.time() - start) * 1000)
+				#print "elapsed", ms, " ms. FPS: ", int(1000/ms)
+				#self.drawImage(frame, self.labels)
+			
 
 	def processFrame(self, img):
-		img = cv2.resize(img,(608,608))
-		im = Image()
-		im.w = img.shape[1]
-		im.h = img.shape[0]
-		im.data = img.tostring()
+		im = TImage()
+		im.width = img.shape[1]
+		im.height = img.shape[0]
+		im.depth = 3
+		im.image = img.tostring()
 		try:
-			# Send image to server
-			id = self.yoloserver_proxy.addImage(im)
-			# Waiting for result+
-			while True:
-				labels = self.yoloserver_proxy.getData(id)
-				if labels.isReady:
-					break
-				else:
-					time.sleep(0.001);					
-			return labels
-
+			myid = self.yoloserver_proxy.processImage(im)
+			return myid 
 		except  Exception as e:
 			print "error", e
-
+		
 	def drawImage(self, img, labels):
 		if labels:
 			for box in labels.lBox:
@@ -122,3 +128,18 @@ class SpecificWorker(GenericWorker):
 					cv2.putText(img, box.label + " " + str(int(box.prob)) + "%", pt, font, 1, (255, 255, 255), 2)
 		cv2.imshow('Image', img);
 		cv2.waitKey(2);
+
+
+#########################################################33
+
+	# subscribe interface
+	#
+	def newObjects(self, id, objs):
+		print "recieved", id, self.myid
+		if id == self.myid:
+			if len(objs) > 0:
+				print id, objs
+			self.labels = objs
+			self.sem = True
+			
+

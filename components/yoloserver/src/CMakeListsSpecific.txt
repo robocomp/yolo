@@ -3,6 +3,7 @@
 SET ( SOURCES
   specificworker.cpp
   specificmonitor.cpp
+  mydetector.c
   )
   
 INCLUDE( $ENV{ROBOCOMP}/cmake/modules/opencv.cmake )
@@ -18,7 +19,7 @@ add_definitions(-O4 -I/home/pbustos/software/darknet/include/ -I/home/pbustos/so
 
 #SET (LIBS -L/usr/local/cuda/lib64 -lcuda -lcudart -lcublas -lcurand ${LIBS} -L/usr/local/cuda/lib64 -lcuda -lcudart -lcublas -lcurand)
 
-SET (LIBS -lopencv_objdetect -lopencv_features2d -lopencv_imgproc -lopencv_highgui -lopencv_core -ldarknet)
+SET (LIBS  -lopencv_core -lopencv_highgui -lopencv_imgproc -L/home/pbustos/software/darknet -ldarknet)
 
 #SET (LIBS -L/home/robolab/smartpolitech/yoloserver/src/yololib -lyolo)
 

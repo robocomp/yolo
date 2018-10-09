@@ -2,11 +2,13 @@ CommonBehavior.Endpoints=tcp -p 11002
 
 
 # Endpoints for implemented interfaces
-YoloServer.Endpoints=tcp -p 11001
+YoloServer.Endpoints=tcp -p 11010
+
+# This property is used by the clients to connect to IceStorm.
+TopicManager.Proxy=IceStorm/TopicManager:default -p 9999
 
 
 Ice.MessageSizeMax = 1200000
-
 
 Ice.ThreadPool.Server.Size = 10
 Ice.ThreadPool.Server.SizeMax = 50
@@ -14,9 +16,5 @@ Ice.ThreadPool.Server.SizeMax = 50
 Ice.Warn.Connections=0
 Ice.Trace.Network=0
 Ice.Trace.Protocol=0
-# Ice.ACM.Client=10
-Ice.ACM.Client=0
-# Ice.ACM.Server=10
-Ice.ACM.Server=0
 
 

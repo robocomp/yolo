@@ -5,6 +5,7 @@ Component clientyoloserver
 	Communications
 	{
 		requires YoloServer;
+		subscribesto YoloPublishObjects;
 	};
 	language Python;
 	gui Qt(QWidget);

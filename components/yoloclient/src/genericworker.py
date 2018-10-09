@@ -56,6 +56,7 @@ if not ice_YoloServer:
 from RoboCompYoloServer import *
 
 
+from yolopublishobjectsI import *
 
 try:
 	from ui_mainUI import *

@@ -1,3 +1,7 @@
+# Endpoints for subscriptions
+YoloPublishObjectsTopic.Endpoints=tcp -p 0
+
+
 # Proxies for required interfaces
 YoloServerProxy = yoloserver:tcp -h localhost -p 0
 

@@ -20,7 +20,7 @@
 #define GENERICWORKER_H
 
 #include "config.h"
-//#include <QtGui>
+#include <QtGui>
 #include <stdint.h>
 #include <qlog/qlog.h>
 
@@ -34,7 +34,7 @@
 
 typedef map <string,::IceProxy::Ice::Object*> MapPrx;
 
-//using namespace std;
+using namespace std;
 
 using namespace RoboCompYoloServer;
 

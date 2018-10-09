@@ -18,13 +18,12 @@
  */
 #include "specificworker.h"
 
-
-
 /**
  * \brief Default constructor
  */
 SpecificWorker::SpecificWorker(MapPrx& mprx) : GenericWorker(mprx)
-{}
+{
+}
 
 /**
  * \brief Default destructor
@@ -34,13 +33,16 @@ SpecificWorker::~SpecificWorker()
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
-	char const *cocodata = "src/yololib/cfg/coco.data";
-	char const *yolocfg = "src/yololib/yolo.cfg";
-	char const *yoloweights = "src/yololib/yolo.weights";
-	//char const *fich = "src/yololib/dehesa_humano.jpg";
-	char const *fich = "";
+	char const *cocodata = "yolodata/coco.data";
+	char const *yolocfg = "yolodata/cfg/yolov3.cfg";
+	char const *yoloweights = "yolodata/yolov3.weights";
+	char const *fich = "yolodata/coco.names";
 	
-	init_detector(const_cast<char*>(cocodata), const_cast<char*>(yolocfg), const_cast<char*>(yoloweights), const_cast<char*>(fich), .24, .5);
+	cout << "setParams. Initializing network" << endl;
+	
+	yolo::init_detector(const_cast<char*>(cocodata), const_cast<char*>(yolocfg), const_cast<char*>(yoloweights), const_cast<char*>(fich), .24, .5, names);
+	
+	cout << "setParams. Network up!" << endl;
 	
 	timer.start(10);
 	return true;
@@ -54,57 +56,58 @@ void SpecificWorker::compute()
 	{
 		QTime reloj = QTime::currentTime();
 		
-		image localImage = createImage( lImgs.pop(id) );
+		yolo::image localImage = createImage( lImgs.pop(id) );
 		qDebug() << __FUNCTION__ << "elapsed image" << reloj.elapsed(); 
-		ResultDetect r = test_detector(.24, .5, localImage);
+		int numboxes = 0;
+		yolo::detection *dets = detector(.5, .5, localImage, &numboxes);
+		
 		qDebug() << __FUNCTION__  << "elapsed detector" << reloj.elapsed();
-		processDetections(id, localImage, r.num, r.thresh, r.boxes, r.probs, r.names, r.classes);
+		
+		processDetections(id, localImage, dets, numboxes);
+		
 		qDebug() << __FUNCTION__ <<  "elapsed TOTAL " << reloj.elapsed(); reloj.restart();
 	}
 }
 
-void SpecificWorker::processDetections(int &id, image im, int num, float thresh, box *boxes, float **probs, char **names, int classes)
+void SpecificWorker::processDetections(int &id, yolo::image im, yolo::detection *dets, int numboxes)
 {
-	int i;
 	Objects myboxes;
 	
-	qDebug() << __FUNCTION__ << "num" << num;
-	for(i = 0; i < num; ++i)
+	qDebug() << __FUNCTION__ << "num" << numboxes;
+	for(int i = 0; i < numboxes; ++i)
 	{
-		if (probs == NULL) continue;
-		int clas = max_index(probs[i], classes);
-		float prob = probs[i][clas];
-		if(prob <= 1 and prob > thresh)
-		{
-			//printf("%s: %.0f%%\n", names[clas], prob*100);
-			box b = boxes[i];
-			int left  = (b.x-b.w/2.)*im.w;
-			int right = (b.x+b.w/2.)*im.w;
-			int top   = (b.y-b.h/2.)*im.h;
-			int bot   = (b.y+b.h/2.)*im.h;
-			if(left < 0) left = 0;
-			if(right > im.w-1) right = im.w-1;
-			if(top < 0) top = 0;
-			if(bot > im.h-1) bot = im.h-1;
-			
-			Box box = {names[clas], left, top, right, bot, prob*100};
-			myboxes.push_back(box);
-		}
+		auto &d = dets[i];
+// 		int clas = yolo::max_index(d.prob, d.classes);
+// 		float prob = d.prob[clas];
+// 		if(prob <= 1 and prob > .5)
+// 		{
+// 			printf("%s: %.0f%%\n", names[clas], prob*100);
+// 			yolo::box &b = d.bbox;
+// 			int left  = (b.x-b.w/2.)*im.w;
+// 			int right = (b.x+b.w/2.)*im.w;
+// 			int top   = (b.y-b.h/2.)*im.h;
+// 			int bot   = (b.y+b.h/2.)*im.h;
+// 			if(left < 0) left = 0;
+// 			if(right > im.w-1) right = im.w-1;
+// 			if(top < 0) top = 0;
+// 			if(bot > im.h-1) bot = im.h-1;
+// 			
+// 			myboxes.emplace_back(Box {names[clas], left, top, right, bot, prob*100});
+// 		}
 	}
-	yolopublishobjects_proxy->newObjects(1, myboxes);
-	//lBoxs.push(myboxes,id);
+	yolopublishobjects_proxy->newObjects(id, myboxes);
 }
 
 
-image SpecificWorker::createImage(const TImage& src)
+yolo::image SpecificWorker::createImage(const TImage& src)
 {
-	int h = src.height;
-	int w = src.width;
-	int c = src.depth;
+	const int &h = src.height;
+	const int &w = src.width;
+	const int &c = src.depth;
 	int step = w*c;
 	
 	int i, j, k;
-	image out = make_image(w, h, c);
+	yolo::image out = yolo::make_image(w, h, c);
 	
 	for(i = 0; i < h; ++i){
 		for(k= 0; k < c; ++k){
@@ -113,16 +116,11 @@ image SpecificWorker::createImage(const TImage& src)
 			}
 		}
 	}
+	//auto m = cv::Mat(h,w, CV_8UC3, (void *)&src.image[0]);
+	//cv::imshow("hola2", m);
 	return out;
 }
 
-void SpecificWorker::drawImage(image img)
-{
-	//    cvNamedWindow("predictions", CV_WINDOW_NORMAL);
-	//    show_image(img, "predictions");
-	//    cvWaitKey(0);
-	//    cvDestroyAllWindows();
-}
 
 
 ///////////////////////////////////////////////////////
@@ -131,7 +129,7 @@ void SpecificWorker::drawImage(image img)
 
 int SpecificWorker::processImage(const TImage &img)
 {
-	// 	qDebug() << __FUNCTION__ << "Added" << img.data.size() << "w " << img.w << "    h " << img
+	qDebug() << __FUNCTION__ << "Added" << img.image.size() << "w " << img.width << "    h " << img.height;
 	if( img.image.size() == 0)
 		return -1;
 	return lImgs.push(img);  //Cambiar a image

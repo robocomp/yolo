@@ -60,7 +60,7 @@ namespace yolo
 // 	    } detection;
 
 		void init_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename,float thresh, float hier_thresh, char **names);
-		detection* detector(float thresh, float hier_thresh, image im, int *numboxes);
+		detection* detector(float thresh, float hier_thresh, image *im, int *numboxes);
 	}
 }
 	class SpecificWorker : public GenericWorker
@@ -77,7 +77,7 @@ namespace yolo
 
 		private:
 			yolo::image createImage(const TImage& src);
-			void processDetections(int &id, yolo::image im, yolo::detection *dets, int numboxes);
+			void processDetections(int &id, const yolo::image &im, yolo::detection *dets, int numboxes);
 			
 		struct ListImg
 		{

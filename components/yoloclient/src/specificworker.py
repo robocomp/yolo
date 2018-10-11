@@ -80,28 +80,30 @@ class SpecificWorker(GenericWorker):
 			
 	@QtCore.Slot()
 	def compute(self):
-		if self.sem:
-			start = time.time()
-			#frame = cv2.cvtColor(self.myqueue.get(), cv2.COLOR_BGR2RGB)
-			ret, frame = self.cap.read();
-			frame = cv2.resize(frame,(608,608))
-			frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-			fgmask = self.fgbg.apply(frame)
-			kernel = np.ones((5,5),np.uint8)
-			erode = cv2.erode(fgmask, kernel, iterations = 2)
-			dilate = cv2.dilate(erode, kernel, iterations = 2)
-			
-			#if cv2.countNonZero(dilate) > 0:
-			
-			self.myid = self.processFrame(frame)
-			self.sem = False
-			
-			self.drawImage(frame, self.labels)
-			
-			#if self.sem:
+		
+		ret, frame = self.cap.read();
+		frame = cv2.resize(frame,(608,608))   # for full yolo
+		self.drawImage(frame, self.labels)		
+		
+		try:
+			if self.sem:
+				start = time.time()
+				#frame = cv2.resize(frame,(416,416))  #tyne yolo
+				fgmask = self.fgbg.apply(frame)
+				kernel = np.ones((5,5),np.uint8)
+				erode = cv2.erode(fgmask, kernel, iterations = 2)
+				dilate = cv2.dilate(erode, kernel, iterations = 2)
+				
+				#if cv2.countNonZero(dilate) > 0:
+				
+				self.myid = self.processFrame(frame)
+				self.sem = False
+				
 				#ms = int((time.time() - start) * 1000)
 				#print "elapsed", ms, " ms. FPS: ", int(1000/ms)
 				#self.drawImage(frame, self.labels)
+		except Exception as e:
+			print "error", e
 			
 
 	def processFrame(self, img):
@@ -116,18 +118,19 @@ class SpecificWorker(GenericWorker):
 		except  Exception as e:
 			print "error", e
 		
+		
 	def drawImage(self, img, labels):
-		if labels:
-			for box in labels.lBox:
-				if box.prob > 35:
-					p1 = (int(box.x), int(box.y))
-					p2 = (int(box.w), int(box.h))
-					pt = (int(box.x), int(box.y) + (p2[1] - p1[1]) / 2)
+		if len(labels)>0:
+			for box in labels:
+				if box.prob > 50:
+					p1 = (int(box.left), int(box.top))
+					p2 = (int(box.right), int(box.bot))
+					pt = (int(box.left), int(box.top) + (p2[1] - p1[1]) / 2)
 					cv2.rectangle(img, p1, p2, (0, 0, 255), 4)
 					font = cv2.FONT_HERSHEY_SIMPLEX
-					cv2.putText(img, box.label + " " + str(int(box.prob)) + "%", pt, font, 1, (255, 255, 255), 2)
-		cv2.imshow('Image', img);
-		cv2.waitKey(2);
+					cv2.putText(img, box.name + " " + str(int(box.prob)) + "%", pt, font, 1, (255, 255, 255), 2)
+			cv2.imshow('Image', img);
+			cv2.waitKey(2);
 
 
 #########################################################33
@@ -135,11 +138,11 @@ class SpecificWorker(GenericWorker):
 	# subscribe interface
 	#
 	def newObjects(self, id, objs):
-		print "recieved", id, self.myid
-		if id == self.myid:
-			if len(objs) > 0:
-				print id, objs
+		#print "recieved", len(objs)
+		if (id == self.myid):
 			self.labels = objs
+			#print "#########################################'"
+			#print self.labels
 			self.sem = True
 			
 

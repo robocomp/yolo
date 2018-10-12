@@ -23,6 +23,7 @@
  */
 SpecificWorker::SpecificWorker(MapPrx& mprx) : GenericWorker(mprx)
 {
+	
 }
 
 /**
@@ -40,7 +41,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 	//char const *yoloweights = "yolodata/yolov3-tiny.weights";
 	char  *fich = "yolodata/coco.names";
 	
-	cout << "setParams. Initializing network" << endl;
+	std::cout << "setParams. Initializing network" << std::endl;
 	
 	yolo::init_detector(const_cast<char*>(cocodata), const_cast<char*>(yolocfg), const_cast<char*>(yoloweights), const_cast<char*>(fich), .24, .5, names);
 	names = yolo::get_labels(fich);
@@ -66,7 +67,7 @@ void SpecificWorker::compute()
 		
 		//qDebug() << __FUNCTION__  << "elapsed detector" << reloj.elapsed();
 		
-		processDetections(id, localImage, dets, numboxes);
+		//processDetections(id, localImage, dets, numboxes);
 		
 		if(reloj.elapsed() > 1000)
 		{
@@ -76,6 +77,7 @@ void SpecificWorker::compute()
 		}
 		cont++;
 		yolo::free_image(localImage);
+		
 	}
 }
 

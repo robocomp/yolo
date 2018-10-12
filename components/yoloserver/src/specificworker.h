@@ -39,26 +39,6 @@ namespace yolo
 	extern "C" 
 	{
 		#include "/home/pbustos/software/darknet/include/darknet.h"	
-// 		typedef struct
-// 		{
-// 						int num;
-// 						float  thresh;
-// 						box *boxes;
-// 						float **probs;
-// 						char **names;
-// 						int classes;
-// 		} ResultDetect;
-		
-// 		typedef struct detection
-// 		{
-// 			box bbox;
-// 			int classes;
-// 			float *prob;
-// 			float *mask;
-// 			float objectness;
-// 			int sort_class;
-// 	    } detection;
-
 		void init_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename,float thresh, float hier_thresh, char **names);
 		detection* detector(float thresh, float hier_thresh, image *im, int *numboxes);
 	}
@@ -119,11 +99,31 @@ namespace yolo
 			};
 		};
 
-	
 		ListImg lImgs;
-		InnerModel innerModel;
+		InnerModel *innerModel;
 		char **names;
 
 	};
 
 #endif
+	
+	
+	// 		typedef struct
+// 		{
+// 						int num;
+// 						float  thresh;
+// 						box *boxes;
+// 						float **probs;
+// 						char **names;
+// 						int classes;
+// 		} ResultDetect;
+		
+// 		typedef struct detection
+// 		{
+// 			box bbox;
+// 			int classes;
+// 			float *prob;
+// 			float *mask;
+// 			float objectness;
+// 			int sort_class;
+// 	    } detection;

@@ -18,7 +18,4 @@ add_definitions(-O4 -mavx2 -I/home/pbustos/software/darknet/include/ -I/home/pbu
 
 SET (LIBS  -lopencv_core -lopencv_highgui -lopencv_imgproc -L/home/pbustos/software/darknet -ldarknet)
 
-
-#ADD_DEFINITIONS( -std=c++11 -I/usr/local/cuda/include/ -DOPENCV -DCUDA)
-
 ADD_DEFINITIONS( -std=c++17 )

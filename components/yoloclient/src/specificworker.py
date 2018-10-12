@@ -22,7 +22,6 @@ from PySide import *
 from genericworker import *
 import numpy as np
 import cv2
-import requests
 import Queue, threading
 #from camerareader import CameraReader
 
@@ -83,27 +82,27 @@ class SpecificWorker(GenericWorker):
 		
 		ret, frame = self.cap.read();
 		frame = cv2.resize(frame,(608,608))   # for full yolo
-		self.drawImage(frame, self.labels)		
+		self.drawImage(frame, self.labels)	
 		
-		try:
-			if self.sem:
-				start = time.time()
-				#frame = cv2.resize(frame,(416,416))  #tyne yolo
-				fgmask = self.fgbg.apply(frame)
-				kernel = np.ones((5,5),np.uint8)
-				erode = cv2.erode(fgmask, kernel, iterations = 2)
-				dilate = cv2.dilate(erode, kernel, iterations = 2)
+		#try:
+			#if self.sem:
+				#start = time.time()
+				##frame = cv2.resize(frame,(416,416))  #tyne yolo
+				#fgmask = self.fgbg.apply(frame)
+				#kernel = np.ones((5,5),np.uint8)
+				#erode = cv2.erode(fgmask, kernel, iterations = 2)
+				#dilate = cv2.dilate(erode, kernel, iterations = 2)
 				
-				#if cv2.countNonZero(dilate) > 0:
+				##if cv2.countNonZero(dilate) > 0:
 				
-				self.myid = self.processFrame(frame)
-				self.sem = False
+				#self.myid = self.processFrame(frame)
+				#self.sem = False
 				
-				#ms = int((time.time() - start) * 1000)
-				#print "elapsed", ms, " ms. FPS: ", int(1000/ms)
-				#self.drawImage(frame, self.labels)
-		except Exception as e:
-			print "error", e
+				##ms = int((time.time() - start) * 1000)
+				##print "elapsed", ms, " ms. FPS: ", int(1000/ms)
+				##self.drawImage(frame, self.labels)
+		#except Exception as e:
+			#print "error", e
 			
 
 	def processFrame(self, img):
@@ -120,15 +119,15 @@ class SpecificWorker(GenericWorker):
 		
 		
 	def drawImage(self, img, labels):
-		if len(labels)>0:
-			for box in labels:
-				if box.prob > 50:
-					p1 = (int(box.left), int(box.top))
-					p2 = (int(box.right), int(box.bot))
-					pt = (int(box.left), int(box.top) + (p2[1] - p1[1]) / 2)
-					cv2.rectangle(img, p1, p2, (0, 0, 255), 4)
-					font = cv2.FONT_HERSHEY_SIMPLEX
-					cv2.putText(img, box.name + " " + str(int(box.prob)) + "%", pt, font, 1, (255, 255, 255), 2)
+		#if len(labels)>0:
+			#for box in labels:
+				#if box.prob > 50:
+					#p1 = (int(box.left), int(box.top))
+					#p2 = (int(box.right), int(box.bot))
+					#pt = (int(box.left), int(box.top) + (p2[1] - p1[1]) / 2)
+					#cv2.rectangle(img, p1, p2, (0, 0, 255), 4)
+					#font = cv2.FONT_HERSHEY_SIMPLEX
+					#cv2.putText(img, box.name + " " + str(int(box.prob)) + "%", pt, font, 1, (255, 255, 255), 2)
 			cv2.imshow('Image', img);
 			cv2.waitKey(2);
 
@@ -138,7 +137,7 @@ class SpecificWorker(GenericWorker):
 	# subscribe interface
 	#
 	def newObjects(self, id, objs):
-		#print "recieved", len(objs)
+		print "received", len(objs)
 		if (id == self.myid):
 			self.labels = objs
 			#print "#########################################'"

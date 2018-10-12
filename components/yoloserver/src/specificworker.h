@@ -22,8 +22,6 @@
        @author authorname
 */
 
-
-
 #ifndef SPECIFICWORKER_H
 #define SPECIFICWORKER_H
 
@@ -34,15 +32,25 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <mutex>
 
-namespace yolo
-{
-	extern "C" 
-	{
+ 	extern "C" 
+ 	{
 		#include "/home/pbustos/software/darknet/include/darknet.h"	
-		void init_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename,float thresh, float hier_thresh, char **names);
-		detection* detector(float thresh, float hier_thresh, image *im, int *numboxes);
-	}
-}
+		static network *ynet;
+		static clock_t ytime1;
+		static float ynms;
+		static int yframe = 3;
+		static int yindex = 0;
+		static float **ypredictions;
+		static float *yavg;
+		static int ytotal = 0; 		
+		
+		int size_network(network *net);
+		void remember_network(network *net);
+		void avg_predictions(network *net);
+		char** get_labels(char *);
+ 	}
+
+
 	class SpecificWorker : public GenericWorker
 	{
 		Q_OBJECT
@@ -58,6 +66,9 @@ namespace yolo
 		private:
 			yolo::image createImage(const TImage& src);
 			void processDetections(int &id, const yolo::image &im, yolo::detection *dets, int numboxes);
+			
+			void init_detector(); 
+			detection* detector(float thresh, float hier_thresh, yolo::image *im, int *numboxes);
 			
 		struct ListImg
 		{
@@ -101,7 +112,8 @@ namespace yolo
 
 		ListImg lImgs;
 		InnerModel *innerModel;
-		char **names;
+		char ** names;
+		
 
 	};
 

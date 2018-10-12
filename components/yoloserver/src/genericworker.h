@@ -34,7 +34,7 @@
 
 typedef map <string,::IceProxy::Ice::Object*> MapPrx;
 
-using namespace std;
+//using namespace std;
 
 using namespace RoboCompYoloServer;
 

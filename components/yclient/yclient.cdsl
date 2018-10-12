@@ -1,0 +1,11 @@
+import "YoloServer.idsl";
+
+Component yclient
+{
+	Communications
+	{
+		requires YoloServer;
+		subscribesto YoloPublishObjects;
+	};
+	language Python;
+};

@@ -3,7 +3,7 @@
 SET ( SOURCES
   specificworker.cpp
   specificmonitor.cpp
-  mydetector.c
+  #mydetector.c
   )
   
 INCLUDE( $ENV{ROBOCOMP}/cmake/modules/opencv.cmake )
@@ -14,7 +14,7 @@ SET ( HEADERS
   specificmonitor.h
 )
 
-add_definitions(-O4 -mavx2 -I/home/pbustos/software/darknet/include/ -I/home/pbustos/software/darknet/src/)
+add_definitions(-g -mavx2 -I/home/pbustos/software/darknet/include/ -I/home/pbustos/software/darknet/src/)
 
 SET (LIBS  -lopencv_core -lopencv_highgui -lopencv_imgproc -L/home/pbustos/software/darknet -ldarknet)
 

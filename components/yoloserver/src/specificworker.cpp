@@ -22,9 +22,7 @@
  * \brief Default constructor
  */
 SpecificWorker::SpecificWorker(MapPrx& mprx) : GenericWorker(mprx)
-{
-	
-}
+{}
 
 /**
  * \brief Default destructor
@@ -34,17 +32,12 @@ SpecificWorker::~SpecificWorker()
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
-	char const *cocodata = "yolodata/coco.data";
-	char const *yolocfg = "yolodata/cfg/yolov3.cfg";
-	char const *yoloweights = "yolodata/yolov3.weights";
-	//char const *yolocfg = "yolodata/cfg/yolov3-tiny.cfg";
-	//char const *yoloweights = "yolodata/yolov3-tiny.weights";
-	char  *fich = "yolodata/coco.names";
+	
 	
 	std::cout << "setParams. Initializing network" << std::endl;
 	
-	yolo::init_detector(const_cast<char*>(cocodata), const_cast<char*>(yolocfg), const_cast<char*>(yoloweights), const_cast<char*>(fich), .24, .5, names);
-	names = yolo::get_labels(fich);
+	init_detector();
+	
 	cout << "setParams. Network up!" << endl;
 	
 	timer.start(10);
@@ -59,15 +52,17 @@ void SpecificWorker::compute()
 	
 	if(lImgs.isEmpty() == false)
 	{
-		yolo::image localImage = createImage( lImgs.pop(id) );
+		image localImage = createImage( lImgs.pop(id) );
+		
 		//qDebug() << __FUNCTION__ << "elapsed image" << reloj.elapsed(); 
 		
-		int numboxes = 0, classes = 0;
-		yolo::detection *dets = detector(.5, .5, &localImage, &numboxes);
+		int numboxes = 0;
+		
+		detection *dets = detector(.5, .5, &localImage, &numboxes);
 		
 		//qDebug() << __FUNCTION__  << "elapsed detector" << reloj.elapsed();
 		
-		//processDetections(id, localImage, dets, numboxes);
+		processDetections(id, localImage, dets, numboxes);
 		
 		if(reloj.elapsed() > 1000)
 		{
@@ -76,7 +71,8 @@ void SpecificWorker::compute()
 			reloj.restart();
 		}
 		cont++;
-		yolo::free_image(localImage);
+		
+		//free_image(localImage);
 		
 	}
 }
@@ -137,6 +133,63 @@ yolo::image SpecificWorker::createImage(const TImage& src)
 	//auto m = cv::Mat(h,w, CV_8UC3, (void *)&src.image[0]);
 	//cv::imshow("hola2", m);
 	return out;
+}
+
+void SpecificWorker::init_detector() 
+{
+	std::string cocodata = "yolodata/coco.data";
+	std::string yolocfg = "yolodata/cfg/yolov3.cfg";
+	std::string yoloweights = "yolodata/yolov3.weights";
+	//char const *cocodata = "yolodata/coco.data";
+	//char const *yolocfg = "yolodata/cfg/yolov3.cfg";
+	//char const *yoloweights = "yolodata/yolov3.weights";
+	//char const *yolocfg = "yolodata/cfg/yolov3-tiny.cfg";
+	//char const *yoloweights = "yolodata/yolov3-tiny.weights";
+	std::string yolonames = "yolodata/coco.names";
+	
+	names = get_labels(const_cast<char*>(yolonames.c_str()));
+ 	ynet = load_network(const_cast<char*>(yolocfg.c_str()),const_cast<char*>(yoloweights.c_str()), 0);
+	set_batch_network(ynet, 1);
+	ytotal = size_network(ynet);
+	ypredictions = (float **)calloc(yframe, sizeof(float*));
+	for (int i = 0; i < yframe; ++i)
+				ypredictions[i] = (float *)calloc(ytotal, sizeof(float));
+	yavg = (float *)calloc(ytotal, sizeof(float));
+	srand(2222222);
+	ynms=.4;
+}
+
+detection* SpecificWorker::detector(float thresh, float hier_thresh, yolo::image *im, int *numboxes)
+{
+	ytime1=clock();
+
+	//image sized = letterbox_image(im, net->w, net->h);
+	//printf("net %d %d \n", net->w, net->h);
+	
+	//printf("Letterbox elapsed %f mseconds.\n", sec(clock()-time1)*1000);
+	//time1=clock();
+	
+	layer l = ynet->layers[ynet->n-1];
+
+	network_predict(ynet, im->data);
+	remember_network(ynet);
+	detection *dets  = 0;
+	avg_predictions(ynet);
+	dets = get_network_boxes(ynet, im->w, im->h, thresh, hier_thresh, 0, 1, numboxes);
+    
+	//printf("Test-Detector: Network-predict elapsed in %f mseconds.\n",sec(clock()-time1)*1000);
+	//time1=clock();
+	
+	const float solapamiento = 0.3;
+	//printf("antes clases %d numboxes %d \n", 20, *numboxes);
+	do_nms_obj(dets, *numboxes, l.classes, solapamiento);
+	//printf("despues clases %d numboxes %d \n", 20, *numboxes);
+	
+	//do_nms_sort(dets, *numboxes, l.classes, solapamiento);
+	
+	//free_detections(dets, *numboxes);
+	
+	return dets;
 }
 
 

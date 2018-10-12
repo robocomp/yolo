@@ -31,25 +31,25 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <mutex>
+#include <queue> 
+#include "/home/pbustos/software/darknet/include/darknet.h"	
 
- 	extern "C" 
- 	{
-		#include "/home/pbustos/software/darknet/include/darknet.h"	
-		static network *ynet;
-		static clock_t ytime1;
-		static float ynms;
-		static int yframe = 3;
-		static int yindex = 0;
-		static float **ypredictions;
-		static float *yavg;
-		static int ytotal = 0; 		
-		
-		int size_network(network *net);
-		void remember_network(network *net);
-		void avg_predictions(network *net);
-		char** get_labels(char *);
- 	}
+static network *ynet;
+static clock_t ytime1;
+static float ynms;
+static int yframe = 3;
+static float **predictions;
+static float *yavg;
+static int ytotal = 0; 		
 
+extern "C" 
+{
+
+	int size_network(network *net);
+	void remember_network(network *net);
+	void avg_predictions(network *net);
+	char** get_labels(char *);
+}
 
 	class SpecificWorker : public GenericWorker
 	{
@@ -58,63 +58,44 @@
 			SpecificWorker(MapPrx& mprx);
 			~SpecificWorker();
 			bool setParams(RoboCompCommonBehavior::ParameterList params);
-			int processImage(const TImage &img);
+			int processImage(const  TImage &img);
 			
 		public slots:
 			void compute();
 
 		private:
 			yolo::image createImage(const TImage& src);
-			void processDetections(int &id, const yolo::image &im, yolo::detection *dets, int numboxes);
-			
+			void processDetections(int id, const yolo::image &im, yolo::detection *dets, int numboxes);
 			void init_detector(); 
-			detection* detector(float thresh, float hier_thresh, yolo::image *im, int *numboxes);
+			detection* detectLabels(float thresh, float hier_thresh, const yolo::image &im, int &numboxes);
 			
-		struct ListImg
+		struct ImgSafeBuffer
 		{
-			unsigned int id=0, id_first=0;
+			unsigned int id=0;
 			std::mutex mut;
-			std::map<int, TImage> map_imgs;
+			std::queue<std::pair<int, TImage>> myqueue;
 			unsigned int push(const TImage &img)
 			{
 					std::lock_guard<std::mutex> lock(mut);
-					map_imgs.emplace(id, img);
+					myqueue.push(std::make_pair(id, img));
 					id++;
 					return id-1;
 			};
-			TImage pop(int &current)
+			std::pair<int, TImage> popIfNotEmpty()
 			{
 				std::lock_guard<std::mutex> lock(mut);
-				const TImage &img = std::move(map_imgs.at(id_first));
-				current = id_first;
-				map_imgs.erase(id_first);
-				id_first++;
-				return img;
-			};
-			TImage get(unsigned int id)
-			{
-				std::lock_guard<std::mutex> lock(mut);
-				return map_imgs.at(id);
-			};
-
-			inline bool isEmpty()
-			{
-				std::lock_guard<std::mutex> lock(mut);
-				return map_imgs.size()==0;
-			};
-
-			unsigned int size()
-			{
-				std::lock_guard<std::mutex> lock(mut);
-				return map_imgs.size();
+				if(myqueue.empty())
+					return std::make_pair(-1, TImage());
+				auto res = myqueue.front();
+				myqueue.pop();
+				return res;
 			};
 		};
 
-		ListImg lImgs;
+		ImgSafeBuffer lImgs;
 		InnerModel *innerModel;
-		char ** names;
-		
-
+		char** names;
+	
 	};
 
 #endif

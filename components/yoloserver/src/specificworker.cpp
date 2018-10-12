@@ -46,38 +46,36 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 
 void SpecificWorker::compute()
 {
-	int id;
 	static int cont = 1;
 	static QTime reloj = QTime::currentTime();
 	
-	if(lImgs.isEmpty() == false)
+	auto r = lImgs.popIfNotEmpty();
+	if( r.first > -1)  // empty condition
 	{
-		image localImage = createImage( lImgs.pop(id) );
+		image localImage = createImage( r.second );
 		
 		//qDebug() << __FUNCTION__ << "elapsed image" << reloj.elapsed(); 
 		
 		int numboxes = 0;
 		
-		detection *dets = detector(.5, .5, &localImage, &numboxes);
+		detection *dets = detectLabels(.5, .5, localImage, numboxes);
 		
 		//qDebug() << __FUNCTION__  << "elapsed detector" << reloj.elapsed();
 		
-		processDetections(id, localImage, dets, numboxes);
+		processDetections(r.first, localImage, dets, numboxes);
 		
 		if(reloj.elapsed() > 1000)
 		{
 			qDebug() << __FUNCTION__ <<  "elapsed TOTAL " << reloj.elapsed()/cont;
-			cont = 1;
-			reloj.restart();
+			cont = 1;	reloj.restart();
 		}
 		cont++;
 		
-		//free_image(localImage);
-		
+		free_image(localImage);
 	}
 }
 
-void SpecificWorker::processDetections(int &id, const yolo::image &im, yolo::detection *dets, int numboxes)
+void SpecificWorker::processDetections(int id, const image &im, detection *dets, int numboxes)
 {
 	Objects myboxes;
 	
@@ -87,12 +85,10 @@ void SpecificWorker::processDetections(int &id, const yolo::image &im, yolo::det
 		auto &d = dets[i];
 		//qDebug() << __FUNCTION__ << "best" << d.objectness;
 	
-		int clas = yolo::max_index(dets[i].prob, dets[i].classes);
+		int clas = max_index(dets[i].prob, dets[i].classes);
  		//float prob = d.prob[clas];
-		float prob = d.objectness;
-		
+		float prob = d.objectness;		
  		//if(prob <= 1 and prob > .7)
- 		
 		if(d.objectness > 0.5)
 		{
  			yolo::box &b = d.bbox;
@@ -109,11 +105,11 @@ void SpecificWorker::processDetections(int &id, const yolo::image &im, yolo::det
  		}
 	}
 	yolopublishobjects_proxy->newObjects(id, myboxes);
-	yolo::free_detections(dets, numboxes);
+	free_detections(dets, numboxes);
 }
 
 
-yolo::image SpecificWorker::createImage(const TImage& src)
+image SpecificWorker::createImage(const TImage& src)
 {
 	const int &h = src.height;
 	const int &w = src.width;
@@ -121,7 +117,7 @@ yolo::image SpecificWorker::createImage(const TImage& src)
 	int step = w*c;
 	
 	int i, j, k;
-	yolo::image out = yolo::make_image(w, h, c);
+	image out = make_image(w, h, c);
 	
 	for(i = 0; i < h; ++i){
 		for(k= 0; k < c; ++k){
@@ -130,8 +126,6 @@ yolo::image SpecificWorker::createImage(const TImage& src)
 			}
 		}
 	}
-	//auto m = cv::Mat(h,w, CV_8UC3, (void *)&src.image[0]);
-	//cv::imshow("hola2", m);
 	return out;
 }
 
@@ -140,54 +134,40 @@ void SpecificWorker::init_detector()
 	std::string cocodata = "yolodata/coco.data";
 	std::string yolocfg = "yolodata/cfg/yolov3.cfg";
 	std::string yoloweights = "yolodata/yolov3.weights";
-	//char const *cocodata = "yolodata/coco.data";
-	//char const *yolocfg = "yolodata/cfg/yolov3.cfg";
-	//char const *yoloweights = "yolodata/yolov3.weights";
-	//char const *yolocfg = "yolodata/cfg/yolov3-tiny.cfg";
-	//char const *yoloweights = "yolodata/yolov3-tiny.weights";
 	std::string yolonames = "yolodata/coco.names";
 	
-	names = get_labels(const_cast<char*>(yolonames.c_str()));
- 	ynet = load_network(const_cast<char*>(yolocfg.c_str()),const_cast<char*>(yoloweights.c_str()), 0);
-	set_batch_network(ynet, 1);
-	ytotal = size_network(ynet);
-	ypredictions = (float **)calloc(yframe, sizeof(float*));
-	for (int i = 0; i < yframe; ++i)
-				ypredictions[i] = (float *)calloc(ytotal, sizeof(float));
-	yavg = (float *)calloc(ytotal, sizeof(float));
-	srand(2222222);
-	ynms=.4;
+	names = yolo::get_labels(const_cast<char*>(yolonames.c_str()));
+ 	ynet = yolo::load_network(const_cast<char*>(yolocfg.c_str()),const_cast<char*>(yoloweights.c_str()), 0);
+	yolo::set_batch_network(ynet, 1);
+// 	ytotal = size_network(ynet);
+// 	predictions = (float **)calloc(yframe, sizeof(float*));
+// 	for (int i = 0; i < yframe; ++i)
+// 				predictions[i] = (float *)calloc(ytotal, sizeof(float));
+// 	yavg = (float *)calloc(ytotal, sizeof(float));
+// 	srand(2222222);
+//	ynms=.4;
 }
 
-detection* SpecificWorker::detector(float thresh, float hier_thresh, yolo::image *im, int *numboxes)
+detection* SpecificWorker::detectLabels(float thresh, float hier_thresh, const image &im, int &numboxes)
 {
 	ytime1=clock();
-
 	//image sized = letterbox_image(im, net->w, net->h);
 	//printf("net %d %d \n", net->w, net->h);
-	
 	//printf("Letterbox elapsed %f mseconds.\n", sec(clock()-time1)*1000);
 	//time1=clock();
 	
 	layer l = ynet->layers[ynet->n-1];
-
-	network_predict(ynet, im->data);
-	remember_network(ynet);
-	detection *dets  = 0;
-	avg_predictions(ynet);
-	dets = get_network_boxes(ynet, im->w, im->h, thresh, hier_thresh, 0, 1, numboxes);
-    
-	//printf("Test-Detector: Network-predict elapsed in %f mseconds.\n",sec(clock()-time1)*1000);
+	network_predict(ynet, im.data);	
+	//remember_network(ynet);	
+	yolo::detection *dets  = 0;
+	//avg_predictions(ynet);
+	dets = get_network_boxes(ynet, im.w, im.h, thresh, hier_thresh, 0, 1, &numboxes);
+	printf("Test-Detector: Network-predict elapsed in %f mseconds.\n",sec(clock()-ytime1)*1000);
 	//time1=clock();
-	
 	const float solapamiento = 0.3;
 	//printf("antes clases %d numboxes %d \n", 20, *numboxes);
-	do_nms_obj(dets, *numboxes, l.classes, solapamiento);
+	do_nms_obj(dets, numboxes, l.classes, solapamiento);
 	//printf("despues clases %d numboxes %d \n", 20, *numboxes);
-	
-	//do_nms_sort(dets, *numboxes, l.classes, solapamiento);
-	
-	//free_detections(dets, *numboxes);
 	
 	return dets;
 }

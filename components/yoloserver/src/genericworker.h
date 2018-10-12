@@ -34,42 +34,37 @@
 
 typedef map <string,::IceProxy::Ice::Object*> MapPrx;
 
-//using namespace std;
-
+using namespace std;
 using namespace RoboCompYoloServer;
 
-
-
-
-class GenericWorker :
-public QObject
+class GenericWorker : public QObject
 {
-Q_OBJECT
-public:
-	GenericWorker(MapPrx& mprx);
-	virtual ~GenericWorker();
-	virtual void killYourSelf();
-	virtual void setPeriod(int p);
+	Q_OBJECT
+	public:
+		GenericWorker(MapPrx& mprx);
+		virtual ~GenericWorker();
+		virtual void killYourSelf();
+		virtual void setPeriod(int p);
 
-	virtual bool setParams(RoboCompCommonBehavior::ParameterList params) = 0;
-	QMutex *mutex;
-
-
-	YoloPublishObjectsPrx yolopublishobjects_proxy;
-
-	virtual int processImage(const TImage &img) = 0;
-
-protected:
-	QTimer timer;
-	int Period;
-
-private:
+		virtual bool setParams(RoboCompCommonBehavior::ParameterList params) = 0;
+		QMutex *mutex;
 
 
-public slots:
-	virtual void compute() = 0;
-signals:
-	void kill();
+		YoloPublishObjectsPrx yolopublishobjects_proxy;
+
+		virtual int processImage(const TImage &img) = 0;
+
+	protected:
+		QTimer timer;
+		int Period;
+
+	private:
+
+
+	public slots:
+		virtual void compute() = 0;
+	signals:
+		void kill();
 };
 
 #endif

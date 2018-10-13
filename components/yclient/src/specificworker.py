@@ -115,7 +115,7 @@ class SpecificWorker(GenericWorker):
 	# newObjects
 	#
 	def newObjects(self, id, objs):
-		print "received", len(objs)
+		#print "received", len(objs)
 		if (id == self.myid):
 			self.labels = objs
 			#print "#########################################'"

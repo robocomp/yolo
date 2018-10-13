@@ -32,27 +32,53 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <mutex>
 #include <queue> 
+#include <tuple>
+#include <thread>
+#include <chrono>
 #include "/home/pbustos/software/darknet/include/darknet.h"	
 
-static network *ynet;
-static clock_t ytime1;
-static float ynms;
-static int yframe = 3;
-static float **predictions;
-static float *yavg;
-static int ytotal = 0; 		
+// static network *ynet;
+// static clock_t ytime1;
+// static float ynms;
+// static int yframe = 3;
+// static float **predictions;
+// static float *yavg;
+// static int ytotal = 0; 		
 
 extern "C" 
 {
-
+	//static network *ynet;
+	//static clock_t ytime1;
+			
 	int size_network(network *net);
 	void remember_network(network *net);
 	void avg_predictions(network *net);
 	char** get_labels(char *);
 }
 
-	class SpecificWorker : public GenericWorker
-	{
+class FPSCounter
+{
+	public:
+		FPSCounter()
+		{
+			begin = std::chrono::high_resolution_clock::now();
+		}
+		void print( int &cont, const unsigned int msPeriod = 1000)  
+		{
+			auto end = std::chrono::high_resolution_clock::now();
+			auto elapsed = std::chrono::duration<double>(end - begin).count() * 1000;
+			if( elapsed > msPeriod)
+			{
+				std::cout << "Epoch time = " << elapsed/cont << "ms. Fps = " << cont << std::endl;
+				begin = std::chrono::high_resolution_clock::now();
+				cont = 0;
+			}
+		}
+		std::chrono::time_point<std::chrono::high_resolution_clock> begin;
+};
+
+class SpecificWorker : public GenericWorker
+{
 		Q_OBJECT
 		public:
 			SpecificWorker(MapPrx& mprx);
@@ -65,58 +91,44 @@ extern "C"
 
 		private:
 			yolo::image createImage(const TImage& src);
-			void processDetections(int id, const yolo::image &im, yolo::detection *dets, int numboxes);
 			void init_detector(); 
-			detection* detectLabels(float thresh, float hier_thresh, const yolo::image &im, int &numboxes);
+			detection* detectLabels(const TImage &img, int requestid, float thresh, float hier_thresh);
 			
-		struct ImgSafeBuffer
-		{
-			unsigned int id=0;
-			std::mutex mut;
-			std::queue<std::pair<int, TImage>> myqueue;
-			unsigned int push(const TImage &img)
+			template<typename T>
+			struct ImgSafeBuffer
 			{
+				unsigned int id=0;
+				std::mutex mut;
+				std::queue<std::tuple<int, T>> myqueue;
+				unsigned int push(const T &img)
+				{
+						std::lock_guard<std::mutex> lock(mut);
+						myqueue.push(std::make_tuple(id, img));
+						id++;
+						return id-1;
+				};
+				std::tuple<int, T> popIfNotEmpty() 
+				{
 					std::lock_guard<std::mutex> lock(mut);
-					myqueue.push(std::make_pair(id, img));
-					id++;
-					return id-1;
+					if(myqueue.empty())
+						return std::make_tuple(-1, T());
+					auto res = std::tuple(myqueue.front());	//move constructor
+					myqueue.pop();
+					return res;															//move constructor
+				};
+				std::size_t size()
+				{
+					std::lock_guard<std::mutex> lock(mut);
+					return myqueue.size();
+				}
 			};
-			std::pair<int, TImage> popIfNotEmpty()
-			{
-				std::lock_guard<std::mutex> lock(mut);
-				if(myqueue.empty())
-					return std::make_pair(-1, TImage());
-				auto res = myqueue.front();
-				myqueue.pop();
-				return res;
-			};
-		};
 
-		ImgSafeBuffer lImgs;
-		InnerModel *innerModel;
-		char** names;
-	
+			ImgSafeBuffer<TImage> lImgs;
+			InnerModel *innerModel;
+			char** names;
+			clock_t ytime1;
+			network *ynet;
 	};
 
 #endif
 	
-	
-	// 		typedef struct
-// 		{
-// 						int num;
-// 						float  thresh;
-// 						box *boxes;
-// 						float **probs;
-// 						char **names;
-// 						int classes;
-// 		} ResultDetect;
-		
-// 		typedef struct detection
-// 		{
-// 			box bbox;
-// 			int classes;
-// 			float *prob;
-// 			float *mask;
-// 			float objectness;
-// 			int sort_class;
-// 	    } detection;

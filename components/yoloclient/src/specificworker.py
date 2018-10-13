@@ -81,29 +81,29 @@ class SpecificWorker(GenericWorker):
 	def compute(self):
 		
 		ret, frame = self.cap.read();
-		frame = cv2.resize(frame,(608,608))   # for full yolo
-		self.drawImage(frame, self.labels)	
+		if ret:
+			frame = cv2.resize(frame,(608,608))   # for full yolo
+			#frame = cv2.resize(frame,(416,416))  #tyne yolo
+			self.drawImage(frame, self.labels)	
 		
-		try:
-			if self.sem:
-				start = time.time()
-				#frame = cv2.resize(frame,(416,416))  #tyne yolo
-				fgmask = self.fgbg.apply(frame)
-				kernel = np.ones((5,5),np.uint8)
-				erode = cv2.erode(fgmask, kernel, iterations = 2)
-				dilate = cv2.dilate(erode, kernel, iterations = 2)
+			try:
+				if self.sem:
+					start = time.time()
+					fgmask = self.fgbg.apply(frame)
+					kernel = np.ones((5,5),np.uint8)
+					erode = cv2.erode(fgmask, kernel, iterations = 2)
+					dilate = cv2.dilate(erode, kernel, iterations = 2)
+					
+					#if cv2.countNonZero(dilate) > 0:
+					
+					self.myid = self.processFrame(frame)
+					self.sem = False
+					
+					ms = int((time.time() - start) * 1000)
+					print "elapsed", ms, " ms. FPS: ", int(1000/ms)
+			#except Exception as e:
+				print "error", e
 				
-				#if cv2.countNonZero(dilate) > 0:
-				
-				self.myid = self.processFrame(frame)
-				self.sem = False
-				
-				#ms = int((time.time() - start) * 1000)
-				#print "elapsed", ms, " ms. FPS: ", int(1000/ms)
-				#self.drawImage(frame, self.labels)
-		except Exception as e:
-			print "error", e
-			
 
 	def processFrame(self, img):
 		im = TImage()
@@ -137,7 +137,7 @@ class SpecificWorker(GenericWorker):
 	# subscribe interface
 	#
 	def newObjects(self, id, objs):
-		print "received", len(objs)
+		#print "received", len(objs)
 		if (id == self.myid):
 			self.labels = objs
 			#print "#########################################'"

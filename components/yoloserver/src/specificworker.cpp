@@ -34,7 +34,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
 	
 	static_assert(std::is_nothrow_move_constructible<RoboCompYoloServer::TImage>::value, "MyType should be noexcept MoveConstructible");
-	static_assert(std::is_nothrow_move_constructible<image>::value, "MyType should be noexcept MoveConstructible");
+	static_assert(std::is_nothrow_move_constructible<yolo::image>::value, "MyType should be noexcept MoveConstructible");
 	
 	std::cout << "setParams. Initializing network" << std::endl;
 	

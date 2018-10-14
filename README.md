@@ -11,3 +11,13 @@ cd ../..
 cmake . 
 make 
 cp -r src/yololib/data/ . wget https://pjreddie.com/media/files/yolo.weights -O src/yololib/yolo.weights
+
+
+## WARNING
+darknet.h has to be modified with a namespace. Add these lines and the closing line at the end of the file.
+
+#ifdef __cplusplus
+extern "C" {
+	namespace yolo
+ {
+#endif

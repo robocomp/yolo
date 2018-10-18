@@ -47,9 +47,6 @@
 
 extern "C" 
 {
-	//static network *ynet;
-	//static clock_t ytime1;
-			
 	int size_network(network *net);
 	void remember_network(network *net);
 	void avg_predictions(network *net);

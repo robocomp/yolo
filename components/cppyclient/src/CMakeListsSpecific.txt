@@ -1,0 +1,17 @@
+
+# Sources set
+SET ( SOURCES
+  specificworker.cpp
+  specificmonitor.cpp
+)
+
+# Headers set
+SET ( HEADERS
+  specificworker.h
+  specificmonitor.h
+)
+
+ADD_DEFINITIONS( -std=c++17 )
+SET ( SPECIFIC_LIBS  -lopencv_core -lopencv_highgui -lopencv_videoio)
+
+

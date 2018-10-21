@@ -36,8 +36,6 @@ SpecificWorker::~SpecificWorker()
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
-//       THE FOLLOWING IS JUST AN EXAMPLE
-//
 //	try
 //	{
 //		RoboCompCommonBehavior::Parameter par = params.at("InnerModelPath");
@@ -46,37 +44,60 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 //	}
 //	catch(std::exception e) { qFatal("Error reading config params"); }
 
-	cap.open(0);
-    if(!cap.isOpened())  // check if we succeeded
+	//cap.open("/home/pbustos/Downloads/style_track.avi");
+	cap.open("/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
+	//cap.open(0);
+	//cap.open("http://192.168.1.105:20005/mjpg/video.mjpg");
+	
+	  if(!cap.isOpened())  // check if we succeeded
         return -1;
 
+// 	cap.set(CV_CAP_PROP_FRAME_WIDTH,806);
+// 	cap.set(CV_CAP_PROP_FRAME_HEIGHT,806);
+	
 	timer.start(50);
 	return true;
 }
 
 void SpecificWorker::compute()
 {
-	 cv::Mat frame;
-     cap >> frame; // get a new frame from camera
-     cv::imshow("edges", frame);
-     //if(cv::waitKey(2) >= 0) b;
+	cv::Mat frame1, frame;
+	cap >> frame1; 
 	
-// 	try
-// 	{
-// 		camera_proxy->getYImage(0,img, cState, bState);
-// 		memcpy(image_gray.data, &img[0], m_width*m_height*sizeof(uchar));
-// 		searchTags(image_gray);
-// 	}
-// 	catch(const Ice::Exception &e)
-// 	{
-// 		std::cout << "Error reading from Camera" << e << std::endl;
-// 	}
+	cv::resize(frame1, frame, cv::Size(608,608));
+	cv::imshow("Yolo", frame);
+
+	try
+	{
+		RoboCompYoloServer::TImage yimage;
+		yimage.width = frame.rows;
+		yimage.height = frame.cols;
+		yimage.depth = 3;
+		if (frame.isContinuous()) 
+			yimage.image.assign(frame.datastart, frame.dataend);
+	  else 
+			for (int i = 0; i < frame.rows; ++i) 
+				yimage.image.insert(yimage.image.end(), frame.ptr<uchar>(i), frame.ptr<uchar>(i)+frame.cols);
+
+		//std::cout << __FILE__ << __FUNCTION__ << "size " <<yimage.image.size() << std::endl;
+		auto myid = yoloserver_proxy->processImage(yimage);
+	}
+	catch(const Ice::Exception &e)
+	{
+		std::cout << "Error sending to YoloServer" << e << std::endl;
+	}
 }
 
 
+///////////////////////////////////////////////////////////////////77
+////////////// Subscribe
+///////////////////////////////////////////////////////////////////7//
+
 void SpecificWorker::newObjects(const int id, const Objects &objs)
 {
-//subscribesToCODE
+
+	if( objs.size() > 0)
+		qDebug() << objs.size();
 
 }
 

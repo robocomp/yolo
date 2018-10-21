@@ -36,14 +36,7 @@
 #include <thread>
 #include <chrono>
 #include "/home/pbustos/software/darknet/include/darknet.h"	
-
-// static network *ynet;
-// static clock_t ytime1;
-// static float ynms;
-// static int yframe = 3;
-// static float **predictions;
-// static float *yavg;
-// static int ytotal = 0; 		
+	
 
 extern "C" 
 {
@@ -88,8 +81,8 @@ class SpecificWorker : public GenericWorker
 
 		private:
 			yolo::image createImage(const TImage& src);
-			void init_detector(); 
-			detection* detectLabels(const TImage &img, int requestid, float thresh, float hier_thresh);
+			network* init_detector(); 
+			detection* detectLabels(yolo::network *ynet, const TImage &img, int requestid, float thresh, float hier_thresh);
 			
 			template<typename T>
 			struct ImgSafeBuffer
@@ -109,7 +102,7 @@ class SpecificWorker : public GenericWorker
 					std::lock_guard<std::mutex> lock(mut);
 					if(myqueue.empty())
 						return std::make_tuple(-1, T());
-					auto res = std::tuple(myqueue.front());	//move constructor
+					auto &&res = std::tuple(myqueue.front());	//move constructor
 					myqueue.pop();
 					return res;															//move constructor
 				};
@@ -124,7 +117,9 @@ class SpecificWorker : public GenericWorker
 			InnerModel *innerModel;
 			char** names;
 			clock_t ytime1;
-			network *ynet;
+			yolo::network *ynet;
+			std::vector<yolo::network*> ynets;
+			const std::size_t YOLO_INSTANCES = 2;
 	};
 
 #endif

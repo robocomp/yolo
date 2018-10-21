@@ -33,8 +33,13 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/bgsegm.hpp>
 #include <range/v3/core.hpp>
+#include <thread>
+#include <chrono>
+ #include <X11/Xlib.h>
 
+ using namespace std::chrono_literals;
 
 class SpecificWorker : public GenericWorker
 {
@@ -52,7 +57,9 @@ public slots:
 private:
 	std::shared_ptr<InnerModel> innerModel;
 	cv::VideoCapture cap;
-
+	const int NUM_CAMERAS = 2;
+	std::vector<std::tuple<std::thread, cv::Mat, std::string>> threadList;
+	
 };
 
 #endif

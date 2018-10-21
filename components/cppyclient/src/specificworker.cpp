@@ -36,51 +36,82 @@ SpecificWorker::~SpecificWorker()
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
-//	try
-//	{
-//		RoboCompCommonBehavior::Parameter par = params.at("InnerModelPath");
-//		innermodel_path = par.value;
-//		innermodel = new InnerModel(innermodel_path);
-//	}
-//	catch(std::exception e) { qFatal("Error reading config params"); }
 
 	//cap.open("/home/pbustos/Downloads/style_track.avi");
-	cap.open("/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
+	//cap.open("/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
 	//cap.open(0);
 	//cap.open("http://192.168.1.105:20005/mjpg/video.mjpg");
 	
-	  if(!cap.isOpened())  // check if we succeeded
-        return -1;
+// 	  if(!cap.isOpened())  // check if we succeeded
+//         return -1;
 
-// 	cap.set(CV_CAP_PROP_FRAME_WIDTH,806);
-// 	cap.set(CV_CAP_PROP_FRAME_HEIGHT,806);
-	
+	XInitThreads();
+	threadList.resize(NUM_CAMERAS);
+	threadList[0] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
+	threadList[1] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/openpose_final1.mp4");
+				
+	auto proxy = yoloserver_proxy;
+
+	for(auto &[t, frame, name] : threadList)
+	{
+		t = std::thread([&frame, name, proxy]
+					{ 
+						cv::VideoCapture cap(name); 
+						cv::Mat framebw, framedilate, framefinal, fgMaskMOG2; 
+						auto pMOG2 = cv::createBackgroundSubtractorMOG2();
+						while(true)
+						{ 
+							cap >> frame; 
+							if(frame.empty())
+								return;
+							cv::resize(frame,frame, cv::Size(608,608));
+							cv::cvtColor(frame, framebw, cv::COLOR_BGR2GRAY);
+							pMOG2->apply(framebw, fgMaskMOG2);
+							cv::dilate(fgMaskMOG2, framedilate, cv::Mat());
+							cv::erode(framedilate, framefinal, cv::Mat());
+							if( cv::countNonZero(framefinal) > 100 )
+							{
+								qDebug() << "pntos " << cv::countNonZero(framefinal) << " " << QString::fromStdString(name);
+								RoboCompYoloServer::TImage yimage{frame.rows, frame.cols, 3};
+								if (frame.isContinuous()) 
+									yimage.image.assign(frame.datastart, frame.dataend);
+								else
+									return;
+								try{ auto myid = proxy->processImage(yimage);} catch(const Ice::Exception &e){};
+							}					
+							cv::imshow(name, frame);
+							std::this_thread::sleep_for(50ms);
+						}
+					});
+	}
+		
 	timer.start(50);
 	return true;
 }
 
 void SpecificWorker::compute()
 {
-	cv::Mat frame1, frame;
-	cap >> frame1; 
+	//cv::Mat frame1, frame;
+	//cap >> frame1; 
+	//cv::resize(frame1, frame, cv::Size(608,608));	
+	//cv::imshow("Yolo", frame);
 	
-	cv::resize(frame1, frame, cv::Size(608,608));
-	cv::imshow("Yolo", frame);
-
+	//qDebug() << "printint";
+	
 	try
 	{
-		RoboCompYoloServer::TImage yimage;
-		yimage.width = frame.rows;
-		yimage.height = frame.cols;
-		yimage.depth = 3;
-		if (frame.isContinuous()) 
-			yimage.image.assign(frame.datastart, frame.dataend);
-	  else 
-			for (int i = 0; i < frame.rows; ++i) 
-				yimage.image.insert(yimage.image.end(), frame.ptr<uchar>(i), frame.ptr<uchar>(i)+frame.cols);
-
-		//std::cout << __FILE__ << __FUNCTION__ << "size " <<yimage.image.size() << std::endl;
-		auto myid = yoloserver_proxy->processImage(yimage);
+// 		RoboCompYoloServer::TImage yimage;
+// 		yimage.width = frame.rows;
+// 		yimage.height = frame.cols;
+// 		yimage.depth = 3;
+// 		if (frame.isContinuous()) 
+// 			yimage.image.assign(frame.datastart, frame.dataend);
+// 	  else 
+// 			for (int i = 0; i < frame.rows; ++i) 
+// 				yimage.image.insert(yimage.image.end(), frame.ptr<uchar>(i), frame.ptr<uchar>(i)+frame.cols);
+// 
+// 		//std::cout << __FILE__ << __FUNCTION__ << "size " <<yimage.image.size() << std::endl;
+// 		auto myid = yoloserver_proxy->processImage(yimage);
 	}
 	catch(const Ice::Exception &e)
 	{
@@ -101,4 +132,12 @@ void SpecificWorker::newObjects(const int id, const Objects &objs)
 
 }
 
+//////////////////////////////////// 
+// RESTOS
 
+
+/*
+	else 
+								for (int i = 0; i < frame.rows; ++i) 
+									yimage.image.insert(yimage.image.end(), frame.ptr<uchar>(i), frame.ptr<uchar>(i)+frame.cols);*/
+						

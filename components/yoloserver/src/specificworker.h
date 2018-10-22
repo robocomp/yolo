@@ -44,6 +44,7 @@ extern "C"
 	void remember_network(network *net);
 	void avg_predictions(network *net);
 	char** get_labels(char *);
+	void cuda_set_device(int);
 }
 
 class FPSCounter

@@ -47,8 +47,10 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 
 	XInitThreads();
 	threadList.resize(NUM_CAMERAS);
-	threadList[0] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
-	threadList[1] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/openpose_final1.mp4");
+	//threadList[0] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
+	//threadList[1] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/openpose_final1.mp4");
+	threadList[0] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Descargas/Colision.mp4");
+	threadList[1] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Descargas/Colision.mp4");
 				
 	auto proxy = yoloserver_proxy;
 
@@ -79,7 +81,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 									return;
 								try{ auto myid = proxy->processImage(yimage);} catch(const Ice::Exception &e){};
 							}					
-							cv::imshow(name, frame);
+							//cv::imshow(name, frame);
 							std::this_thread::sleep_for(50ms);
 						}
 					});
@@ -91,6 +93,43 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 
 void SpecificWorker::compute()
 {
+	int w=2, h=1;
+	int n = w*h;
+// 	for(auto &&[t, frame, name] : threadList)
+// 	{
+// 		if( std::any_of(threadList.begin(),threadList.end(), [frame](auto &m){ return std::get<1>(m).size != frame.size;}));
+// 		{	std::cout << "Not all images have the same shape." << std::endl;
+// 			return;
+// 		}
+// 	}
+	auto &&[t, frame, name] = threadList[0];
+	int img_h = frame.rows;
+	int img_w = frame.cols;
+	int img_c = frame.depth();
+	int m_x = 0;
+	int m_y = 0;
+	std::vector<cv::Mat> imgs;
+	for(auto &&[t, frame, name] : threadList)
+		imgs.push_back(frame);
+	
+	cv::Mat gframe = cv::Mat::zeros(img_h * h + m_y * (h - 1),img_w * w + m_x * (w - 1), CV_8UC1);
+	
+	auto positions = iter::product(iter::range(w),iter::range(h));
+	for( auto &&[x, y] : positions)
+		std::cout << "positions " << x << " " << y << std::endl;
+// 			
+	for (auto&& [pos, img] : iter::zip(positions, imgs)) 
+	{	
+		auto &&[x_i, y_i] = pos;
+		std::cout << "positions2 " << x_i << " " << y_i << std::endl;
+		int x = x_i * (img_w + m_x);
+		int y = y_i * (img_h + m_y);
+		//gframe[y:y+img_h, x:x+img_w, :] = img;
+		//cv::Mat dst_roi = dst(Rect(left, top, src.cols, src.rows));
+		img.copyTo(gframe(cv::Rect(y,x,y+img_w,x+img_h)));
+	}
+	cv::imshow("SmartPoliTech", gframe);
+	
 	//cv::Mat frame1, frame;
 	//cap >> frame1; 
 	//cv::resize(frame1, frame, cv::Size(608,608));	
@@ -118,6 +157,7 @@ void SpecificWorker::compute()
 		std::cout << "Error sending to YoloServer" << e << std::endl;
 	}
 }
+
 
 
 ///////////////////////////////////////////////////////////////////77

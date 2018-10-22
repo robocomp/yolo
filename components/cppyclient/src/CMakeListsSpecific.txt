@@ -12,6 +12,6 @@ SET ( HEADERS
 )
 
 ADD_DEFINITIONS( -std=c++17 )
-SET ( SPECIFIC_LIBS  -lopencv_videoio -lopencv_imgproc -lopencv_core -lopencv_highgui -lopencv_bgsegm -lopencv_objdetect -lopencv_ml -lopencv_video -lX11)
+SET ( SPECIFIC_LIBS  -lopencv_videoio -lopencv_imgproc -lopencv_core -lopencv_highgui  -lopencv_objdetect -lopencv_ml -lopencv_video -lX11)
 
 

@@ -73,14 +73,15 @@ void SpecificWorker::compute()
 yolo::network* SpecificWorker::init_detector() 
 {
 	std::string cocodata = "yolodata/coco.data";
-	std::string yolocfg = "yolodata/cfg/yolov3-tiny.cfg";
-	std::string yoloweights = "yolodata/yolov3-tiny.weights";
+	std::string yolocfg = "yolodata/cfg/yolov3.cfg";
+	std::string yoloweights = "yolodata/yolov3.weights";
 	std::string yolonames = "yolodata/coco.names";
 	
 	names = yolo::get_labels(const_cast<char*>(yolonames.c_str()));
  	yolo::network *ynet = yolo::load_network(const_cast<char*>(yolocfg.c_str()),const_cast<char*>(yoloweights.c_str()), 0);
+	yolo::set_batch_network(ynet, 1);
+	cuda_set_device(0);
 	return ynet;
-	//yolo::set_batch_network(ynet, 1);
 	
 // 	ytotal = size_network(ynet);
 // 	predictions = (float **)calloc(yframe, sizeof(float*));

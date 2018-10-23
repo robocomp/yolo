@@ -1,6 +1,5 @@
 CommonBehavior.Endpoints=tcp -p 11002
 
-
 # Endpoints for implemented interfaces
 YoloServer.Endpoints=tcp -p 11010
 

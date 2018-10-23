@@ -120,7 +120,7 @@ class SpecificWorker : public GenericWorker
 			clock_t ytime1;
 			yolo::network *ynet;
 			std::vector<yolo::network*> ynets;
-			const std::size_t YOLO_INSTANCES = 2;
+			const std::size_t YOLO_INSTANCES = 1;
 	};
 
 #endif

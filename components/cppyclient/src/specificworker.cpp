@@ -36,126 +36,88 @@ SpecificWorker::~SpecificWorker()
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
-
-	//cap.open("/home/pbustos/Downloads/style_track.avi");
-	//cap.open("/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
-	//cap.open(0);
-	//cap.open("http://192.168.1.105:20005/mjpg/video.mjpg");
-	
-// 	  if(!cap.isOpened())  // check if we succeeded
-//         return -1;
-
-	XInitThreads();
+	// XInitThreads();
 	threadList.resize(NUM_CAMERAS);
 	//threadList[0] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
 	//threadList[1] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/openpose_final1.mp4");
-	threadList[0] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Descargas/Colision.mp4");
-	threadList[1] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Descargas/Colision.mp4");
+	threadList[0] = std::make_tuple( 0, std::thread(), cv::Mat(), -1, Objects());
+	threadList[1] = std::make_tuple( 1, std::thread(), cv::Mat(), -1, Objects());
 				
 	auto proxy = yoloserver_proxy;
+	auto li_size = i_size;
 
-	for(auto &[t, frame, name] : threadList)
+	for(auto &[cam, t, frame, id, objs] : threadList)
 	{
-		t = std::thread([&frame, name, proxy]
+		t = std::thread([&frame, cam, proxy, &id, li_size]
 					{ 
-						cv::VideoCapture cap(name); 
-						cv::Mat framebw, framedilate, framefinal, fgMaskMOG2; 
-						auto pMOG2 = cv::createBackgroundSubtractorMOG2();
+						cv::VideoCapture cap(cam); 
+						if(cap.isOpened() == false)
+						{
+							std::cout << "Camera " << cam << " could not be opened" << std::endl;
+							return;
+						}
+// 						cv::Mat framebw, framedilate, framefinal, fgMaskMOG2; 
+// 						auto pMOG2 = cv::createBackgroundSubtractorMOG2();
 						while(true)
 						{ 
 							cap >> frame; 
 							if(frame.empty())
-								return;
-							cv::resize(frame,frame, cv::Size(608,608));
-							cv::cvtColor(frame, framebw, cv::COLOR_BGR2GRAY);
-							pMOG2->apply(framebw, fgMaskMOG2);
-							cv::dilate(fgMaskMOG2, framedilate, cv::Mat());
-							cv::erode(framedilate, framefinal, cv::Mat());
-							if( cv::countNonZero(framefinal) > 100 )
+								continue;
+							cv::resize(frame,frame, cv::Size(li_size,li_size));
+// 							cv::cvtColor(frame, framebw, cv::COLOR_BGR2GRAY);
+// 							pMOG2->apply(framebw, fgMaskMOG2);
+// 							cv::dilate(fgMaskMOG2, framedilate, cv::Mat());
+// 							cv::erode(framedilate, framefinal, cv::Mat());
+// 							if( cv::countNonZero(framefinal) > 100 )
 							{
-								qDebug() << "pntos " << cv::countNonZero(framefinal) << " " << QString::fromStdString(name);
+								//qDebug() << "pntos " << cv::countNonZero(framefinal) << " " << name;
 								RoboCompYoloServer::TImage yimage{frame.rows, frame.cols, 3};
 								if (frame.isContinuous()) 
 									yimage.image.assign(frame.datastart, frame.dataend);
 								else
-									return;
-								try{ auto myid = proxy->processImage(yimage);} catch(const Ice::Exception &e){};
+								{
+									std::cout << "Frame not continuous in camera" <<  cam <<std::endl;
+									continue;
+								}
+								try{ id = proxy->processImage(yimage);} catch(const Ice::Exception &e){std::cout << e.what() << std::endl;};
 							}					
-							//cv::imshow(name, frame);
 							std::this_thread::sleep_for(50ms);
 						}
 					});
 	}
-		
+	t_width=2; t_height=1;
+ 	gframe = cv::Mat::zeros( i_height * t_height, i_width * t_width, CV_8UC3);
+ 	
 	timer.start(50);
 	return true;
 }
 
 void SpecificWorker::compute()
 {
-	int w=2, h=1;
-	int n = w*h;
-// 	for(auto &&[t, frame, name] : threadList)
-// 	{
-// 		if( std::any_of(threadList.begin(),threadList.end(), [frame](auto &m){ return std::get<1>(m).size != frame.size;}));
-// 		{	std::cout << "Not all images have the same shape." << std::endl;
-// 			return;
-// 		}
-// 	}
-	auto &&[t, frame, name] = threadList[0];
-	int img_h = frame.rows;
-	int img_w = frame.cols;
-	int img_c = frame.depth();
-	int m_x = 0;
-	int m_y = 0;
-	std::vector<cv::Mat> imgs;
-	for(auto &&[t, frame, name] : threadList)
-		imgs.push_back(frame);
+	auto positions = iter::product(iter::range(t_width),iter::range(t_height));
 	
-	cv::Mat gframe = cv::Mat::zeros(img_h * h + m_y * (h - 1),img_w * w + m_x * (w - 1), CV_8UC1);
-	
-	auto positions = iter::product(iter::range(w),iter::range(h));
-	for( auto &&[x, y] : positions)
-		std::cout << "positions " << x << " " << y << std::endl;
-// 			
-	for (auto&& [pos, img] : iter::zip(positions, imgs)) 
+	if( std::adjacent_find( threadList.begin(), threadList.end(), [](auto &a, auto &b){ return std::get<2>(a).size[0] != std::get<2>(b).size[0];}) != threadList.end())
 	{	
+		std::cout << "Not all images have the same shape: " <<  std::endl;
+ 		return;
+	}
+	
+	for (auto&& [pos, tupla] : iter::zip(positions, threadList)) 
+	{	
+		auto &&[cam, t, frame, id, objs] = tupla;
+		if(frame.empty() or frame.cols != this->i_size or frame.rows != this->i_size)
+			continue;
+				
+		for( auto &&box : objs)
+		{
+			cv::rectangle(frame, cv::Point(box.left, box.top), cv::Point(box.right, box.bot), cv::Scalar(0, 255, 0));
+			cv::putText(frame, box.name, cv::Point(box.left, box.top), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 200, 200), 4);
+		}
+		
 		auto &&[x_i, y_i] = pos;
-		std::cout << "positions2 " << x_i << " " << y_i << std::endl;
-		int x = x_i * (img_w + m_x);
-		int y = y_i * (img_h + m_y);
-		//gframe[y:y+img_h, x:x+img_w, :] = img;
-		//cv::Mat dst_roi = dst(Rect(left, top, src.cols, src.rows));
-		img.copyTo(gframe(cv::Rect(y,x,y+img_w,x+img_h)));
+		frame.copyTo(gframe(cv::Rect(x_i * i_width, y_i * i_height, i_width, i_height)));
 	}
-	cv::imshow("SmartPoliTech", gframe);
-	
-	//cv::Mat frame1, frame;
-	//cap >> frame1; 
-	//cv::resize(frame1, frame, cv::Size(608,608));	
-	//cv::imshow("Yolo", frame);
-	
-	//qDebug() << "printint";
-	
-	try
-	{
-// 		RoboCompYoloServer::TImage yimage;
-// 		yimage.width = frame.rows;
-// 		yimage.height = frame.cols;
-// 		yimage.depth = 3;
-// 		if (frame.isContinuous()) 
-// 			yimage.image.assign(frame.datastart, frame.dataend);
-// 	  else 
-// 			for (int i = 0; i < frame.rows; ++i) 
-// 				yimage.image.insert(yimage.image.end(), frame.ptr<uchar>(i), frame.ptr<uchar>(i)+frame.cols);
-// 
-// 		//std::cout << __FILE__ << __FUNCTION__ << "size " <<yimage.image.size() << std::endl;
-// 		auto myid = yoloserver_proxy->processImage(yimage);
-	}
-	catch(const Ice::Exception &e)
-	{
-		std::cout << "Error sending to YoloServer" << e << std::endl;
-	}
+	cv::imshow("SmartPoliTech", gframe);	
 }
 
 
@@ -165,19 +127,39 @@ void SpecificWorker::compute()
 ///////////////////////////////////////////////////////////////////7//
 
 void SpecificWorker::newObjects(const int id, const Objects &objs)
-{
-
-	if( objs.size() > 0)
-		qDebug() << objs.size();
-
+{	
+	std::cout << "------------------------------ " << std::endl;
+	auto r = std::find_if(std::begin(threadList), std::end(threadList), 
+						[id, objs](auto &l)
+						{ 
+							auto &[cam, t, frame, myid, myobjs] = l; 
+							std::cout << "objs " << objs.size() << " id " << id <<  " myid " << myid << std::endl;
+							if(myid == id)
+							{ 
+								myobjs = objs; 
+								return true; 
+							}
+							else return false;						   
+						});
 }
 
 //////////////////////////////////// 
 // RESTOS
 
+//std::cout << "positions2 " << x_i << " " << y_i << std::endl;
+		//std::cout << "frame size " << img.rows << " " << img.cols << " " << x << " " << y << " " << i_width << " " << i_height << "  "<< gframe.cols << " " << gframe.rows << std::endl;
+		
 
 /*
 	else 
 								for (int i = 0; i < frame.rows; ++i) 
 									yimage.image.insert(yimage.image.end(), frame.ptr<uchar>(i), frame.ptr<uchar>(i)+frame.cols);*/
-						
+		
+	// 	for(auto &&[t, frame, name] : threadList)
+//  	{
+//  		if( std::any_of(threadList.begin(),threadList.end(), [frame](auto &m){ return std::get<1>(m).size[0] != frame.size[0];}))
+//  		{	std::cout << "Not all images have the same shape." << std::endl;
+//  			return;
+//  		}
+//  	}
+

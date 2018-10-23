@@ -112,6 +112,7 @@ yolo::image SpecificWorker::createImage(const TImage& src)		//reentrant
 	return out;
 }
 
+//Must be reentrant
 detection* SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, int requestid, float thresh, float hier_thresh)
 {
 	//ytime1=clock();

@@ -41,7 +41,7 @@
 #include <cppitertools/range.hpp>
 #include <cppitertools/product.hpp>
 
- using namespace std::chrono_literals;
+using namespace std::chrono_literals;
 
 class SpecificWorker : public GenericWorker
 {
@@ -50,7 +50,6 @@ public:
 	SpecificWorker(MapPrx& mprx);
 	~SpecificWorker();
 	bool setParams(RoboCompCommonBehavior::ParameterList params);
-
 	void newObjects(const int id, const Objects &objs);
 
 public slots:
@@ -60,8 +59,12 @@ private:
 	std::shared_ptr<InnerModel> innerModel;
 	cv::VideoCapture cap;
 	const int NUM_CAMERAS = 2;
-	std::vector<std::tuple<std::thread, cv::Mat, std::string>> threadList;
+	
+	std::vector<std::tuple<int, std::thread, cv::Mat, int, Objects>> threadList;
 	std::vector<cv::Mat> imgsList;
+	const int i_size = 608;
+	int t_width, t_height, i_width = i_size, i_height = i_size;
+	cv::Mat gframe;
 };
 
 #endif

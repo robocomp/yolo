@@ -81,7 +81,6 @@
 #include "specificmonitor.h"
 #include "commonbehaviorI.h"
 
-#include <yolopublishobjectsI.h>
 
 #include <YoloServer.h>
 
@@ -153,16 +152,6 @@ int ::yclient::run(int argc, char* argv[])
 	rInfo("YoloServerProxy initialized Ok!");
 	mprx["YoloServerProxy"] = (::IceProxy::Ice::Object*)(&yoloserver_proxy);//Remote server proxy creation example
 
-	IceStorm::TopicManagerPrx topicManager;
-	try
-	{
-		topicManager = IceStorm::TopicManagerPrx::checkedCast(communicator()->propertyToProxy("TopicManager.Proxy"));
-	}
-	catch (const Ice::Exception &ex)
-	{
-		cout << "[" << PROGRAM_NAME << "]: Exception: STORM not running: " << ex << endl;
-		return EXIT_FAILURE;
-	}
 
 
 	SpecificWorker *worker = new SpecificWorker(mprx);
@@ -199,34 +188,6 @@ int ::yclient::run(int argc, char* argv[])
 
 
 		// Server adapter creation and publication
-		if (not GenericMonitor::configGetString(communicator(), prefix, "YoloPublishObjectsTopic.Endpoints", tmp, ""))
-		{
-			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy YoloPublishObjectsProxy";
-		}
-		Ice::ObjectAdapterPtr YoloPublishObjects_adapter = communicator()->createObjectAdapterWithEndpoints("yolopublishobjects", tmp);
-		YoloPublishObjectsPtr yolopublishobjectsI_ = new YoloPublishObjectsI(worker);
-		Ice::ObjectPrx yolopublishobjects = YoloPublishObjects_adapter->addWithUUID(yolopublishobjectsI_)->ice_oneway();
-		IceStorm::TopicPrx yolopublishobjects_topic;
-		if(!yolopublishobjects_topic){
-		try {
-			yolopublishobjects_topic = topicManager->create("YoloPublishObjects");
-		}
-		catch (const IceStorm::TopicExists&) {
-		//Another client created the topic
-		try{
-			yolopublishobjects_topic = topicManager->retrieve("YoloPublishObjects");
-		}
-		catch(const IceStorm::NoSuchTopic&)
-		{
-			//Error. Topic does not exist
-			}
-		}
-		IceStorm::QoS qos;
-		yolopublishobjects_topic->subscribeAndGetPublisher(qos, yolopublishobjects);
-		}
-		YoloPublishObjects_adapter->activate();
-
-		// Server adapter creation and publication
 		cout << SERVER_FULL_NAME " started" << endl;
 
 		// User defined QtGui elements ( main window, dialogs, etc )
@@ -238,8 +199,6 @@ int ::yclient::run(int argc, char* argv[])
 		// Run QT Application Event Loop
 		a.exec();
 
-		std::cout << "Unsubscribing topic: yolopublishobjects " <<std::endl;
-		yolopublishobjects_topic->unsubscribe( yolopublishobjects );
 
 		status = EXIT_SUCCESS;
 	}

@@ -155,7 +155,8 @@ detection* SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, 
  		}
 	}
 	//qDebug() << __FILE__ << __FUNCTION__ << "LABELS " << myboxes.size();
-	yolopublishobjects_proxy->newObjects(requestid, myboxes);
+	//yolopublishobjects_proxy->newObjects(requestid, myboxes);
+	lImgs.pushResults(requestid, myboxes);
 	free_detections(dets, numboxes);
 	free_image(yoloImage);
 }
@@ -166,7 +167,7 @@ detection* SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, 
 ///// SERVANTS
 //////////////////////////////////////////////////////
 
-int SpecificWorker::processImage(const TImage &img)
+RoboCompYoloServer::Objects SpecificWorker::processImage(const TImage &img)
 {
 	//qDebug() << __FUNCTION__ << "Added" << img.image.size() << "w " << img.width << "    h " << img.height;
 	if( img.image.size() != 608*608*3)
@@ -175,8 +176,14 @@ int SpecificWorker::processImage(const TImage &img)
 		RoboCompYoloServer::HardwareFailedException e{ "Incorrect size of image: " + std::to_string(img.image.size()) + " bytes. Should be " + std::to_string(608*608*3)};
 		throw e;
 	}
-	//localImage.image.swap(const_cast<ImgType&>(img.image));
-	//return lImgs.push(localImage);  //Cambiar a image
-	return lImgs.push(img);  //Cambiar a image
+	auto id = lImgs.push(img);
+	
+	//bucle de espera
+	do
+	{
+		auto &&[ready, objs] = lImgs.popResults(id);
+	}
+	while (!ready);
+	return objs;
 }
 

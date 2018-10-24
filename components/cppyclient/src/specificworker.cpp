@@ -79,8 +79,9 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 									std::cout << "Frame not continuous in camera" <<  cam <<std::endl;
 									continue;
 								}
-								try{ id = proxy->processImage(yimage);} catch(const Ice::Exception &e){std::cout << e.what() << std::endl;};
+								try{ auto r = proxy->processImage(yimage);} catch(const Ice::Exception &e){std::cout << e.what() << std::endl;};
 							}					
+							//wait for return
 							std::this_thread::sleep_for(50ms);
 						}
 					});
@@ -125,7 +126,7 @@ void SpecificWorker::compute()
 ///////////////////////////////////////////////////////////////////77
 ////////////// Subscribe
 ///////////////////////////////////////////////////////////////////7//
-
+/*
 void SpecificWorker::newObjects(const int id, const Objects &objs)
 {	
 	std::cout << "------------------------------ " << std::endl;
@@ -141,7 +142,7 @@ void SpecificWorker::newObjects(const int id, const Objects &objs)
 							}
 							else return false;						   
 						});
-}
+}*/
 
 //////////////////////////////////// 
 // RESTOS

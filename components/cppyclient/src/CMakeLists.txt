@@ -26,7 +26,6 @@ SET ( SOURCES
   commonbehaviorI.cpp
   genericworker.cpp
   specificworker.cpp
-  yolopublishobjectsI.cpp
 )
 
 

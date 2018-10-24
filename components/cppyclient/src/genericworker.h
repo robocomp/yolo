@@ -57,7 +57,6 @@ public:
 
 	YoloServerPrx yoloserver_proxy;
 
-	virtual void newObjects(const int id, const Objects &objs) = 0;
 
 protected:
 	QTimer timer;

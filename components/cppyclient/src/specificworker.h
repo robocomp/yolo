@@ -50,7 +50,6 @@ public:
 	SpecificWorker(MapPrx& mprx);
 	~SpecificWorker();
 	bool setParams(RoboCompCommonBehavior::ParameterList params);
-	void newObjects(const int id, const Objects &objs);
 
 public slots:
 	void compute();

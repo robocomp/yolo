@@ -91,6 +91,7 @@ class SpecificWorker : public GenericWorker
 				unsigned int id=0;
 				std::mutex mut;
 				std::queue<std::tuple<int, T>> myqueue;
+				std::queue<std::tuple<int, Objects>> myresults;
 				unsigned int push(const T &img)
 				{
 						std::lock_guard<std::mutex> lock(mut);
@@ -111,6 +112,21 @@ class SpecificWorker : public GenericWorker
 				{
 					std::lock_guard<std::mutex> lock(mut);
 					return myqueue.size();
+				}
+				void pushResults(int id, const Objects &objs)
+				{
+					std::lock_guard<std::mutex> lock(mut);
+					myresults.push(std::make_tuple(if, objs));
+				}
+				auto popResults(int id, const Objects &objs)
+				{
+					std::lock_guard<std::mutex> lock(mut);
+					if(myresults.empty())
+						return std::make_tuple(-1,Objects());
+					//NECEISTAMOS BUSCAR AQUI
+					auto &&res = std::tuple(myresults.front());	//move constructor
+					myresults.pop();
+					return res;
 				}
 			};
 

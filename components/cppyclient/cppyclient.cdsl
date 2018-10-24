@@ -5,7 +5,6 @@ Component yclient
 	Communications
 	{
 		requires YoloServer;
-		subscribesto YoloPublishObjects;
 	};
 	language Cpp;
 };

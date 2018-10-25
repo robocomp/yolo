@@ -89,9 +89,10 @@ class SpecificWorker : public GenericWorker
 			struct ImgSafeBuffer
 			{
 				unsigned int id=0;
-				std::mutex mut;
+				std::mutex mut,mutR;
 				std::queue<std::tuple<int, T>> myqueue;
-				std::queue<std::tuple<int, Objects>> myresults;
+				std::vector<std::tuple<int, Objects>> myresults;
+				
 				unsigned int push(const T &img)
 				{
 						std::lock_guard<std::mutex> lock(mut);
@@ -104,7 +105,7 @@ class SpecificWorker : public GenericWorker
 					std::lock_guard<std::mutex> lock(mut);
 					if(myqueue.empty())
 						return std::make_tuple(-1, T());
-					auto &&res = std::tuple(myqueue.front());	//move constructor
+					auto &&res = std::move(myqueue.front());	
 					myqueue.pop();
 					return res;															//move constructor
 				};
@@ -113,19 +114,19 @@ class SpecificWorker : public GenericWorker
 					std::lock_guard<std::mutex> lock(mut);
 					return myqueue.size();
 				}
-				void pushResults(int id, const Objects &objs)
+				void pushResults(int id, const Objects &objs) //cambiar a &&
 				{
-					std::lock_guard<std::mutex> lock(mut);
-					myresults.push(std::make_tuple(id, objs));
+					std::lock_guard<std::mutex> lock(mutR);
+					myresults.push_back(std::make_tuple(id, objs));
 				}
 				std::tuple<int, Objects> popResults(int id)
 				{
-					std::lock_guard<std::mutex> lock(mut);
-					if(myresults.empty())
-						return std::make_tuple(-1,Objects());
-					//NECEISTAMOS BUSCAR AQUI
-					auto &&res = myresults.front();	//move constructor
-					myresults.pop();
+					std::lock_guard<std::mutex> lock(mutR);
+					auto r = std::find_if(std::begin(myresults), std::end(myresults), [id](const auto &r){return std::get<0>(r) == id;});
+					if(r == std::end(myresults))
+						return std::make_tuple(-1, Objects());
+					auto &&res = std::move(*r);	
+					myresults.erase(r);
 					return res;
 				}
 			};
@@ -134,7 +135,7 @@ class SpecificWorker : public GenericWorker
 			InnerModel *innerModel;
 			char** names;
 			clock_t ytime1;
-			yolo::network *ynet;
+			//yolo::network *ynet;
 			std::vector<yolo::network*> ynets;
 			const std::size_t YOLO_INSTANCES = 1;
 	};

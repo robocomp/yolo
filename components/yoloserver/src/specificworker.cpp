@@ -179,7 +179,7 @@ RoboCompYoloServer::Objects SpecificWorker::processImage(const TImage &img)
 	auto id = lImgs.push(img);
 	
 	//bucle de espera
-	while( std::get<1>(lImgs.popResults(id)).empty() == true);
+	while( std::get<0>(lImgs.popResults(id))==-1);
 	return std::get<1>(lImgs.popResults(id));
 }
 

@@ -75,7 +75,7 @@ class SpecificWorker : public GenericWorker
 			SpecificWorker(MapPrx& mprx);
 			~SpecificWorker();
 			bool setParams(RoboCompCommonBehavior::ParameterList params);
-			int processImage(const  TImage &img);
+			RoboCompYoloServer::Objects processImage(const  TImage &img);
 			
 		public slots:
 			void compute();
@@ -116,15 +116,15 @@ class SpecificWorker : public GenericWorker
 				void pushResults(int id, const Objects &objs)
 				{
 					std::lock_guard<std::mutex> lock(mut);
-					myresults.push(std::make_tuple(if, objs));
+					myresults.push(std::make_tuple(id, objs));
 				}
-				auto popResults(int id, const Objects &objs)
+				std::tuple<int, Objects> popResults(int id)
 				{
 					std::lock_guard<std::mutex> lock(mut);
 					if(myresults.empty())
 						return std::make_tuple(-1,Objects());
 					//NECEISTAMOS BUSCAR AQUI
-					auto &&res = std::tuple(myresults.front());	//move constructor
+					auto &&res = myresults.front();	//move constructor
 					myresults.pop();
 					return res;
 				}

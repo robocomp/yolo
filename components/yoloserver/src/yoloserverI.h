@@ -34,7 +34,7 @@ public:
 YoloServerI(GenericWorker *_worker);
 	~YoloServerI();
 
-	int processImage(const TImage  &img, const Ice::Current&);
+	Objects processImage(const TImage  &img, const Ice::Current&);
 
 private:
 

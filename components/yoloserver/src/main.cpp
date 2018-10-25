@@ -116,6 +116,7 @@ int ::yoloserver::run(int argc, char* argv[])
 {
 	QCoreApplication a(argc, argv);  // NON-GUI application
 
+
 	sigset_t sigs;
 	sigemptyset(&sigs);
 	sigaddset(&sigs, SIGHUP);

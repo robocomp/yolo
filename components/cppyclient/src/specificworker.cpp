@@ -21,34 +21,31 @@
 /**
 * \brief Default constructor
 */
-SpecificWorker::SpecificWorker(MapPrx& mprx) : GenericWorker(mprx)
-{
-
-}
+SpecificWorker::SpecificWorker(YoloServerPrxPtr tprx) : GenericWorker(tprx)
+{}
 
 /**
 * \brief Default destructor
 */
 SpecificWorker::~SpecificWorker()
-{
-
-}
+{}
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
 	// XInitThreads();
+	NUM_CAMERAS = 1;
 	threadList.resize(NUM_CAMERAS);
 	//threadList[0] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
 	//threadList[1] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/openpose_final1.mp4");
 	threadList[0] = std::make_tuple( 0, std::thread(), cv::Mat(), -1, Objects());
-	threadList[1] = std::make_tuple( 1, std::thread(), cv::Mat(), -1, Objects());
+	//threadList[1] = std::make_tuple( 1, std::thread(), cv::Mat(), -1, Objects());
 				
 	auto proxy = yoloserver_proxy;
 	auto li_size = i_size;
 
 	for(auto &[cam, t, frame, id, objs] : threadList)
 	{
-		t = std::thread([&frame, cam, proxy, &id, li_size]
+		t = std::thread([&frame, cam, proxy, &id, &objs, li_size]
 					{ 
 						cv::VideoCapture cap(cam); 
 						if(cap.isOpened() == false)
@@ -79,9 +76,8 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 									std::cout << "Frame not continuous in camera" <<  cam <<std::endl;
 									continue;
 								}
-								try{ auto r = proxy->processImage(yimage);} catch(const Ice::Exception &e){std::cout << e.what() << std::endl;};
+								try{ objs = proxy->processImage(yimage);} catch(const Ice::Exception &e){std::cout << e.what() << std::endl;};
 							}					
-							//wait for return
 							std::this_thread::sleep_for(50ms);
 						}
 					});

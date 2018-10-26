@@ -131,45 +131,9 @@ int ::yoloserver::run(int argc, char* argv[])
 
 	int status=EXIT_SUCCESS;
 
-	YoloPublishObjectsPrx yolopublishobjects_proxy;
 
 	string proxy, tmp;
 	initialize();
-
-	IceStorm::TopicManagerPrx topicManager;
-	try
-	{
-		topicManager = IceStorm::TopicManagerPrx::checkedCast(communicator()->propertyToProxy("TopicManager.Proxy"));
-	}
-	catch (const Ice::Exception &ex)
-	{
-		cout << "[" << PROGRAM_NAME << "]: Exception: STORM not running: " << ex << endl;
-		return EXIT_FAILURE;
-	}
-
-	IceStorm::TopicPrx yolopublishobjects_topic;
-	while (!yolopublishobjects_topic)
-	{
-		try
-		{
-			yolopublishobjects_topic = topicManager->retrieve("YoloPublishObjects");
-		}
-		catch (const IceStorm::NoSuchTopic&)
-		{
-			try
-			{
-				yolopublishobjects_topic = topicManager->create("YoloPublishObjects");
-			}
-			catch (const IceStorm::TopicExists&){
-				// Another client created the topic.
-			}
-		}
-	}
-	Ice::ObjectPrx yolopublishobjects_pub = yolopublishobjects_topic->getPublisher()->ice_oneway();
-	YoloPublishObjectsPrx yolopublishobjects = YoloPublishObjectsPrx::uncheckedCast(yolopublishobjects_pub);
-	mprx["YoloPublishObjectsPub"] = (::IceProxy::Ice::Object*)(&yolopublishobjects);
-
-
 
 	SpecificWorker *worker = new SpecificWorker(mprx);
 	//Monitor thread
@@ -194,12 +158,10 @@ int ::yoloserver::run(int argc, char* argv[])
 			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy CommonBehavior\n";
 		}
 		Ice::ObjectAdapterPtr adapterCommonBehavior = communicator()->createObjectAdapterWithEndpoints("commonbehavior", tmp);
-		CommonBehaviorI *commonbehaviorI = new CommonBehaviorI(monitor );
-		adapterCommonBehavior->add(commonbehaviorI, communicator()->stringToIdentity("commonbehavior"));
+		//CommonBehaviorI *commonbehaviorI = new CommonBehaviorI(monitor );
+		auto commonbehaviorI = make_shared<CommonBehaviorI>(monitor);
+		adapterCommonBehavior->add(commonbehaviorI, Ice::stringToIdentity("commonbehavior"));
 		adapterCommonBehavior->activate();
-
-
-
 
 		// Server adapter creation and publication
 		if (not GenericMonitor::configGetString(communicator(), prefix, "YoloServer.Endpoints", tmp, ""))
@@ -207,8 +169,9 @@ int ::yoloserver::run(int argc, char* argv[])
 			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy YoloServer";
 		}
 		Ice::ObjectAdapterPtr adapterYoloServer = communicator()->createObjectAdapterWithEndpoints("YoloServer", tmp);
-		YoloServerI *yoloserver = new YoloServerI(worker);
-		adapterYoloServer->add(yoloserver, communicator()->stringToIdentity("yoloserver"));
+		//YoloServerI *yoloserver = new YoloServerI(worker);
+		auto yoloserver = make_shared<YoloServerI>(worker);
+		adapterYoloServer->add(yoloserver, Ice::stringToIdentity("yoloserver"));
 		adapterYoloServer->activate();
 		cout << "[" << PROGRAM_NAME << "]: YoloServer adapter created in port " << tmp << endl;
 

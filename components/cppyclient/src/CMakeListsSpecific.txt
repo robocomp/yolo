@@ -11,7 +11,7 @@ SET ( HEADERS
   specificmonitor.h
 )
 
-ADD_DEFINITIONS( -std=c++17 )
-SET ( SPECIFIC_LIBS  -lopencv_videoio -lopencv_imgproc -lopencv_core -lopencv_highgui  -lopencv_objdetect -lopencv_ml -lopencv_video -lX11 )
+ADD_DEFINITIONS( -std=c++17 -DICE_CPP11_MAPPING)
+SET ( SPECIFIC_LIBS  -lopencv_videoio -lopencv_imgproc -lopencv_core -lopencv_highgui  -lopencv_objdetect -lopencv_ml -lopencv_video  )
 
 

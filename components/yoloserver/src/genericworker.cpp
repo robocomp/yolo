@@ -23,7 +23,6 @@
 GenericWorker::GenericWorker(MapPrx& mprx) :
 QObject()
 {
-	yolopublishobjects_proxy = (*(YoloPublishObjectsPrx*)mprx["YoloPublishObjectsPub"]);
 
 	mutex = new QMutex(QMutex::Recursive);
 

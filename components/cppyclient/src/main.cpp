@@ -81,9 +81,7 @@
 #include "specificmonitor.h"
 #include "commonbehaviorI.h"
 
-
 #include <YoloServer.h>
-
 
 // User includes here
 
@@ -98,7 +96,7 @@ public:
 private:
 	void initialize();
 	std::string prefix;
-	MapPrx mprx;
+	//MapPrx mprx;
 
 public:
 	virtual int run(int, char*[]);
@@ -130,7 +128,7 @@ int ::yclient::run(int argc, char* argv[])
 
 	int status=EXIT_SUCCESS;
 
-	YoloServerPrx yoloserver_proxy;
+	YoloServerPrxPtr yoloserver_proxy;
 
 	string proxy, tmp;
 	initialize();
@@ -142,7 +140,9 @@ int ::yclient::run(int argc, char* argv[])
 		{
 			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy YoloServerProxy\n";
 		}
-		yoloserver_proxy = YoloServerPrx::uncheckedCast( communicator()->stringToProxy( proxy ) );
+		//yoloserver_proxy = YoloServerPrx::uncheckedCast( Ice::stringToProxy( proxy ) );
+		auto base = communicator()->stringToProxy( proxy ) ;
+		yoloserver_proxy = Ice::checkedCast<YoloServerPrx>(base);
 	}
 	catch(const Ice::Exception& ex)
 	{
@@ -150,11 +150,11 @@ int ::yclient::run(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 	rInfo("YoloServerProxy initialized Ok!");
-	mprx["YoloServerProxy"] = (::IceProxy::Ice::Object*)(&yoloserver_proxy);//Remote server proxy creation example
+	//mprx["YoloServerProxy"] = (::Ice::Object*)(&yoloserver_proxy);//Remote server proxy creation example
+	TuplaPrx tprx = std::make_tuple(yoloserver_proxy);
 
 
-
-	SpecificWorker *worker = new SpecificWorker(mprx);
+	SpecificWorker *worker = new SpecificWorker(yoloserver_proxy);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());
 	QObject::connect(monitor, SIGNAL(kill()), &a, SLOT(quit()));
@@ -177,14 +177,10 @@ int ::yclient::run(int argc, char* argv[])
 			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy CommonBehavior\n";
 		}
 		Ice::ObjectAdapterPtr adapterCommonBehavior = communicator()->createObjectAdapterWithEndpoints("commonbehavior", tmp);
-		CommonBehaviorI *commonbehaviorI = new CommonBehaviorI(monitor );
-		adapterCommonBehavior->add(commonbehaviorI, communicator()->stringToIdentity("commonbehavior"));
+		//CommonBehaviorI *commonbehaviorI = new CommonBehaviorI(monitor );
+		auto commonbehaviorI = make_shared<CommonBehaviorI>(monitor);
+		adapterCommonBehavior->add(commonbehaviorI, Ice::stringToIdentity("commonbehavior"));
 		adapterCommonBehavior->activate();
-
-
-
-
-
 
 
 		// Server adapter creation and publication

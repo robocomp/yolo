@@ -28,7 +28,7 @@ YoloServerI::~YoloServerI()
 {
 }
 
-Objects YoloServerI::processImage(const TImage  &img, const Ice::Current&)
+Objects YoloServerI::processImage(TImage img, const Ice::Current&)
 {
 	return worker->processImage(img);
 }

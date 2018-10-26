@@ -20,10 +20,11 @@
 /**
 * \brief Default constructor
 */
-GenericWorker::GenericWorker(MapPrx& mprx) :
-QObject()
+GenericWorker::GenericWorker( YoloServerPrxPtr tprx ) : QObject()
 {
-	yoloserver_proxy = (*(YoloServerPrx*)mprx["YoloServerProxy"]);
+	//yoloserver_proxy = (*(YoloServerPrx*)mprx["YoloServerProxy"]);
+	//yoloserver_proxy = std::get<0>(tprx);
+
 
 	mutex = new QMutex(QMutex::Recursive);
 

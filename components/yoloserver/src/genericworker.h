@@ -24,25 +24,20 @@
 #include <stdint.h>
 #include <qlog/qlog.h>
 
-
 #include <CommonBehavior.h>
-
 #include <YoloServer.h>
 
 #define CHECK_PERIOD 5000
 #define BASIC_PERIOD 100
 
-typedef map <string,::IceProxy::Ice::Object*> MapPrx;
+typedef map <string,::Ice::Object*> MapPrx;
+
 
 using namespace std;
-
 using namespace RoboCompYoloServer;
 
 
-
-
-class GenericWorker :
-public QObject
+class GenericWorker : public QObject
 {
 Q_OBJECT
 public:
@@ -50,14 +45,10 @@ public:
 	virtual ~GenericWorker();
 	virtual void killYourSelf();
 	virtual void setPeriod(int p);
-
 	virtual bool setParams(RoboCompCommonBehavior::ParameterList params) = 0;
 	QMutex *mutex;
 
-
-	YoloPublishObjectsPrx yolopublishobjects_proxy;
-
-	virtual Objects processImage(const TImage &img) = 0;
+	virtual Objects processImage(TImage img) = 0;
 
 protected:
 	QTimer timer;

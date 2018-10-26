@@ -13,8 +13,8 @@ SET ( HEADERS
   specificmonitor.h
 )
 
-add_definitions(-O3 -mavx2 -std=c++17 -I/home/pbustos/software/darknet/include/ -I/home/pbustos/software/darknet/src/ )
+add_definitions(-O3 -mavx2 -std=c++17 -DICE_CPP11_MAPPING -I/home/pbustos/software/darknet/include/ -I/home/pbustos/software/darknet/src/ )
 
-SET (LIBS -lopencv_core -lopencv_highgui -lopencv_imgproc  -L/home/pbustos/software/darknet -ldarknet )
+SET (LIBS -lopencv_core -lopencv_highgui -lopencv_imgproc  -L/home/pbustos/software/darknet -ldarknet -lIce++11)
 
 

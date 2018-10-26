@@ -75,7 +75,7 @@ class SpecificWorker : public GenericWorker
 			SpecificWorker(MapPrx& mprx);
 			~SpecificWorker();
 			bool setParams(RoboCompCommonBehavior::ParameterList params);
-			RoboCompYoloServer::Objects processImage(const  TImage &img);
+			RoboCompYoloServer::Objects processImage(TImage img);
 			
 		public slots:
 			void compute();
@@ -83,7 +83,7 @@ class SpecificWorker : public GenericWorker
 		private:
 			yolo::image createImage(const TImage& src);
 			network* init_detector(); 
-			detection* detectLabels(yolo::network *ynet, const TImage &img, int requestid, float thresh, float hier_thresh);
+			void detectLabels(yolo::network *ynet, const TImage &img, int requestid, float thresh, float hier_thresh);
 			
 			template<typename T>
 			struct ImgSafeBuffer
@@ -91,7 +91,7 @@ class SpecificWorker : public GenericWorker
 				unsigned int id=0;
 				std::mutex mut,mutR;
 				std::queue<std::tuple<int, T>> myqueue;
-				std::vector<std::tuple<int, Objects>> myresults;
+				std::vector<std::tuple<int, RoboCompYoloServer::Objects>> myresults;
 				
 				unsigned int push(const T &img)
 				{

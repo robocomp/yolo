@@ -45,25 +45,26 @@ using namespace std::chrono_literals;
 
 class SpecificWorker : public GenericWorker
 {
-Q_OBJECT
-public:
-	SpecificWorker(MapPrx& mprx);
-	~SpecificWorker();
-	bool setParams(RoboCompCommonBehavior::ParameterList params);
+	Q_OBJECT
+	public:
+		SpecificWorker(YoloServerPrxPtr tprx);
+		~SpecificWorker();
+		bool setParams(RoboCompCommonBehavior::ParameterList params);
 
-public slots:
-	void compute();
+	public slots:
+		void compute();
 
-private:
-	std::shared_ptr<InnerModel> innerModel;
-	cv::VideoCapture cap;
-	const int NUM_CAMERAS = 2;
-	
-	std::vector<std::tuple<int, std::thread, cv::Mat, int, Objects>> threadList;
-	std::vector<cv::Mat> imgsList;
-	const int i_size = 608;
-	int t_width, t_height, i_width = i_size, i_height = i_size;
-	cv::Mat gframe;
+	private:
+		std::shared_ptr<InnerModel> innerModel;
+		cv::VideoCapture cap;
+		int NUM_CAMERAS = 2;
+		
+		std::vector<std::tuple<int, std::thread, cv::Mat, int, Objects>> threadList;
+		
+		std::vector<cv::Mat> imgsList;
+		const int i_size = 608;
+		int t_width, t_height, i_width = i_size, i_height = i_size;
+		cv::Mat gframe;
 };
 
 #endif

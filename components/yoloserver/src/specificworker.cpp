@@ -38,7 +38,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 	
 	std::cout << "setParams. Initializing network" << std::endl;
 	
-	for(int i=0; i<YOLO_INSTANCES; ++i)
+	for(uint i=0; i<YOLO_INSTANCES; ++i)
 		ynets.emplace_back(init_detector());
 		
 	//init_detector();
@@ -58,7 +58,7 @@ void SpecificWorker::compute()
 	
 	// 	Minimum between queue size and yolo instances to resize the thread pool
 	auto min = std::min( lImgs.size(), YOLO_INSTANCES);
-	for(int i=0; i < min; i++)
+	for(uint i=0; i < min; i++)
 	{
 		auto [index, img] = lImgs.popIfNotEmpty();
 		threadVector.push_back( std::thread(&SpecificWorker::detectLabels, this, ynets[i], std::ref(img), index, .5, .5 ));
@@ -113,7 +113,7 @@ yolo::image SpecificWorker::createImage(const TImage& src)		//reentrant
 }
 
 //Must be reentrant
-detection* SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, int requestid, float thresh, float hier_thresh)
+void SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, int requestid, float thresh, float hier_thresh)
 {
 	//ytime1=clock();
 	//image sized = letterbox_image(im, net->w, net->h);
@@ -133,7 +133,7 @@ detection* SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, 
 	const float solapamiento = 0.5;
 	do_nms_obj(dets, numboxes, l.classes, solapamiento);
 	
-	Objects myboxes;
+	RoboCompYoloServer::Objects myboxes;
 	
 	for(int i = 0; i < numboxes; ++i)
 	{
@@ -151,7 +151,7 @@ detection* SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, 
  			if(right > yoloImage.w-1) right = yoloImage.w-1;
  			if(top < 0) top = 0;
  			if(bot > yoloImage.h-1) bot = yoloImage.h-1;
- 			myboxes.emplace_back(Box {names[clas], left, top, right, bot, prob*100});
+ 			myboxes.emplace_back(RoboCompYoloServer::Box {names[clas], left, top, right, bot, prob*100});
  		}
 	}
 	//qDebug() << __FILE__ << __FUNCTION__ << "LABELS " << myboxes.size();
@@ -167,7 +167,7 @@ detection* SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, 
 ///// SERVANTS
 //////////////////////////////////////////////////////
 
-RoboCompYoloServer::Objects SpecificWorker::processImage(const TImage &img)
+RoboCompYoloServer::Objects SpecificWorker::processImage(TImage img)
 {
 	//qDebug() << __FUNCTION__ << "Added" << img.image.size() << "w " << img.width << "    h " << img.height;
 	if( img.image.size() != 608*608*3)
@@ -179,7 +179,10 @@ RoboCompYoloServer::Objects SpecificWorker::processImage(const TImage &img)
 	auto id = lImgs.push(img);
 	
 	//bucle de espera
-	while( std::get<0>(lImgs.popResults(id))==-1);
-	return std::get<1>(lImgs.popResults(id));
+ 	std::tuple<int, RoboCompYoloServer::Objects> res;
+ 	do{ res = lImgs.popResults(id); }
+ 	while( std::get<0>(res) == -1);
+	qDebug() << "Objects " << std::get<1>(res).size();
+	return std::get<1>(res);
 }
 

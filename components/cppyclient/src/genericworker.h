@@ -43,7 +43,7 @@ class GenericWorker : public QObject
 {
 	Q_OBJECT
 	public:
-		GenericWorker(YoloServerPrxPtr tprx);
+		GenericWorker(const TuplaPrx &tprx);
 		virtual ~GenericWorker();
 		virtual void killYourSelf();
 		virtual void setPeriod(int p);

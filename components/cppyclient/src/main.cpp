@@ -129,7 +129,7 @@ int ::yclient::run(int argc, char* argv[])
 	int status=EXIT_SUCCESS;
 
 	YoloServerPrxPtr yoloserver_proxy;
-
+	TuplaPrx tprx;
 	string proxy, tmp;
 	initialize();
 
@@ -143,18 +143,19 @@ int ::yclient::run(int argc, char* argv[])
 		//yoloserver_proxy = YoloServerPrx::uncheckedCast( Ice::stringToProxy( proxy ) );
 		auto base = communicator()->stringToProxy( proxy ) ;
 		yoloserver_proxy = Ice::checkedCast<YoloServerPrx>(base);
+	
+		rInfo("YoloServerProxy initialized Ok!");
+	
+		//mprx["YoloServerProxy"] = (::Ice::Object*)(&yoloserver_proxy);//Remote server proxy creation example
+		tprx = std::make_tuple(yoloserver_proxy);
 	}
 	catch(const Ice::Exception& ex)
 	{
 		cout << "[" << PROGRAM_NAME << "]: Exception: " << ex;
 		return EXIT_FAILURE;
 	}
-	rInfo("YoloServerProxy initialized Ok!");
-	//mprx["YoloServerProxy"] = (::Ice::Object*)(&yoloserver_proxy);//Remote server proxy creation example
-	TuplaPrx tprx = std::make_tuple(yoloserver_proxy);
-
-
-	SpecificWorker *worker = new SpecificWorker(yoloserver_proxy);
+	
+	SpecificWorker *worker = new SpecificWorker(tprx);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());
 	QObject::connect(monitor, SIGNAL(kill()), &a, SLOT(quit()));
@@ -177,7 +178,6 @@ int ::yclient::run(int argc, char* argv[])
 			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy CommonBehavior\n";
 		}
 		Ice::ObjectAdapterPtr adapterCommonBehavior = communicator()->createObjectAdapterWithEndpoints("commonbehavior", tmp);
-		//CommonBehaviorI *commonbehaviorI = new CommonBehaviorI(monitor );
 		auto commonbehaviorI = make_shared<CommonBehaviorI>(monitor);
 		adapterCommonBehavior->add(commonbehaviorI, Ice::stringToIdentity("commonbehavior"));
 		adapterCommonBehavior->activate();

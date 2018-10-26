@@ -20,11 +20,9 @@
 /**
 * \brief Default constructor
 */
-GenericWorker::GenericWorker( YoloServerPrxPtr tprx ) : QObject()
+GenericWorker::GenericWorker( const TuplaPrx &tprx) : QObject()
 {
-	//yoloserver_proxy = (*(YoloServerPrx*)mprx["YoloServerProxy"]);
-	//yoloserver_proxy = std::get<0>(tprx);
-
+	std::tie( yoloserver_proxy )  = tprx;
 
 	mutex = new QMutex(QMutex::Recursive);
 

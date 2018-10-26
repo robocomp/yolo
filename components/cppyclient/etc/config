@@ -8,6 +8,7 @@ YoloPublishObjectsTopic.Endpoints=tcp -p 12001
 # Proxies for required interfaces
 YoloServerProxy = yoloserver:tcp -h localhost -p 11010
 
+Ice.MessageSizeMax = 1200000
 
 # This property is used by the clients to connect to IceStorm.
 TopicManager.Proxy=IceStorm/TopicManager:default -p 9999

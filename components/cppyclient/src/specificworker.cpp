@@ -21,7 +21,7 @@
 /**
 * \brief Default constructor
 */
-SpecificWorker::SpecificWorker(YoloServerPrxPtr tprx) : GenericWorker(tprx)
+SpecificWorker::SpecificWorker(const TuplaPrx &tprx) : GenericWorker(tprx)
 {}
 
 /**
@@ -39,7 +39,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 	//threadList[1] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/openpose_final1.mp4");
 	threadList[0] = std::make_tuple( 0, std::thread(), cv::Mat(), -1, Objects());
 	//threadList[1] = std::make_tuple( 1, std::thread(), cv::Mat(), -1, Objects());
-				
+	
 	auto proxy = yoloserver_proxy;
 	auto li_size = i_size;
 
@@ -55,6 +55,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 						}
 // 						cv::Mat framebw, framedilate, framefinal, fgMaskMOG2; 
 // 						auto pMOG2 = cv::createBackgroundSubtractorMOG2();
+						RoboCompYoloServer::TImage yimage{li_size, li_size, 3, ImgType(li_size*li_size*3)};
 						while(true)
 						{ 
 							cap >> frame; 
@@ -68,7 +69,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 // 							if( cv::countNonZero(framefinal) > 100 )
 							{
 								//qDebug() << "pntos " << cv::countNonZero(framefinal) << " " << name;
-								RoboCompYoloServer::TImage yimage{frame.rows, frame.cols, 3};
+								
 								if (frame.isContinuous()) 
 									yimage.image.assign(frame.datastart, frame.dataend);
 								else
@@ -76,7 +77,13 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 									std::cout << "Frame not continuous in camera" <<  cam <<std::endl;
 									continue;
 								}
-								try{ objs = proxy->processImage(yimage);} catch(const Ice::Exception &e){std::cout << e.what() << std::endl;};
+								try
+								{ 
+									auto fut = proxy->processImageAsync(yimage);
+									objs = fut.get();
+									//objs = proxy->processImage(yimage);
+								} 
+								catch(const Ice::Exception &e){std::cout << "shit " << e.what() << std::endl;};
 							}					
 							std::this_thread::sleep_for(50ms);
 						}

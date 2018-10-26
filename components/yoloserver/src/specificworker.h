@@ -93,14 +93,14 @@ class SpecificWorker : public GenericWorker
 				std::queue<std::tuple<int, T>> myqueue;
 				std::vector<std::tuple<int, RoboCompYoloServer::Objects>> myresults;
 				
-				unsigned int push(const T &img)
+				unsigned int pushImage(T &&img)
 				{
 						std::lock_guard<std::mutex> lock(mut);
-						myqueue.push(std::make_tuple(id, img));
-						id++;
-						return id-1;
+						myqueue.push(std::make_tuple(++id, img));
+						return id;
 				};
-				std::tuple<int, T> popIfNotEmpty() 
+				
+				std::tuple<int, T> popImageIfNotEmpty() 
 				{
 					std::lock_guard<std::mutex> lock(mut);
 					if(myqueue.empty())

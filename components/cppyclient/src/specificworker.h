@@ -47,7 +47,7 @@ class SpecificWorker : public GenericWorker
 {
 	Q_OBJECT
 	public:
-		SpecificWorker(YoloServerPrxPtr tprx);
+		SpecificWorker(const TuplaPrx &tprx);
 		~SpecificWorker();
 		bool setParams(RoboCompCommonBehavior::ParameterList params);
 

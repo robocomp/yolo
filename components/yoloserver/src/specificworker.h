@@ -37,6 +37,7 @@
 #include <chrono>
 #include "/home/pbustos/software/darknet/include/darknet.h"	
 	
+using namespace std::chrono_literals;
 
 extern "C" 
 {
@@ -138,6 +139,7 @@ class SpecificWorker : public GenericWorker
 			//yolo::network *ynet;
 			std::vector<yolo::network*> ynets;
 			const std::size_t YOLO_INSTANCES = 1;
+			
 	};
 
 #endif

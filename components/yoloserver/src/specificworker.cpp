@@ -179,7 +179,7 @@ RoboCompYoloServer::Objects SpecificWorker::processImage(TImage img)
 	
 	//bucle de espera
  	std::tuple<int, RoboCompYoloServer::Objects> res;
- 	do{ res = lImgs.popResults(id); }
+ 	do{ res = lImgs.popResults(id); std::this_thread::sleep_for(20ms); }
  	while( std::get<0>(res) == -1);
 	qDebug() << "Objects " << std::get<1>(res).size();
 	return std::get<1>(res);

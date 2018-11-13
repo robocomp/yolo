@@ -65,6 +65,7 @@ class SpecificWorker : public GenericWorker
 		const int i_size = 608;
 		int t_width, t_height, i_width = i_size, i_height = i_size;
 		cv::Mat gframe;
+		mutable std::mutex mymutex;
 };
 
 #endif

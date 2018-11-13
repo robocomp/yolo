@@ -33,19 +33,19 @@ SpecificWorker::~SpecificWorker()
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
 	// XInitThreads();
-	NUM_CAMERAS = 1;
+	NUM_CAMERAS = 2;
 	threadList.resize(NUM_CAMERAS);
 	//threadList[0] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
 	//threadList[1] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/openpose_final1.mp4");
 	threadList[0] = std::make_tuple( 0, std::thread(), cv::Mat(), -1, Objects());
-	//threadList[1] = std::make_tuple( 1, std::thread(), cv::Mat(), -1, Objects());
+	threadList[1] = std::make_tuple( 1, std::thread(), cv::Mat(), -1, Objects());
 	
 	auto proxy = yoloserver_proxy;
 	auto li_size = i_size;
 
 	for(auto &[cam, t, frame, id, objs] : threadList)
 	{
-		t = std::thread([&frame, cam, proxy, &id, &objs, li_size]
+		t = std::thread([&frame, cam, proxy, &id, &objs, li_size, this]
 					{ 
 						cv::VideoCapture cap(cam); 
 						if(cap.isOpened() == false)
@@ -58,6 +58,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 						RoboCompYoloServer::TImage yimage{li_size, li_size, 3, ImgType(li_size*li_size*3)};
 						while(true)
 						{ 
+							mymutex.lock();
 							cap >> frame; 
 							if(frame.empty())
 								continue;
@@ -79,12 +80,14 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 								}
 								try
 								{ 
-									auto fut = proxy->processImageAsync(yimage);
-									objs = fut.get();
+									//auto fut = proxy->processImageAsync(yimage);
+									objs = proxy->processImage(yimage);
+									//objs = fut.get();
 									//objs = proxy->processImage(yimage);
 								} 
 								catch(const Ice::Exception &e){std::cout << "shit " << e.what() << std::endl;};
-							}					
+							}
+							mymutex.unlock();
 							std::this_thread::sleep_for(50ms);
 						}
 					});
@@ -98,13 +101,14 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 
 void SpecificWorker::compute()
 {
-	auto positions = iter::product(iter::range(t_width),iter::range(t_height));
-	
-	if( std::adjacent_find( threadList.begin(), threadList.end(), [](auto &a, auto &b){ return std::get<2>(a).size[0] != std::get<2>(b).size[0];}) != threadList.end())
-	{	
-		std::cout << "Not all images have the same shape: " <<  std::endl;
- 		return;
-	}
+ 	static auto positions = iter::product(iter::range(t_width),iter::range(t_height));
+ 	
+	mymutex.lock();
+ 	if( std::adjacent_find( threadList.begin(), threadList.end(), [](auto &a, auto &b){ return std::get<2>(a).size[0] != std::get<2>(b).size[0];}) != threadList.end())
+ 	{	
+ 		std::cout << "Not all images have the same shape: " <<  std::endl;
+  		return;
+ 	}
 	
 	for (auto&& [pos, tupla] : iter::zip(positions, threadList)) 
 	{	
@@ -121,6 +125,7 @@ void SpecificWorker::compute()
 		auto &&[x_i, y_i] = pos;
 		frame.copyTo(gframe(cv::Rect(x_i * i_width, y_i * i_height, i_width, i_height)));
 	}
+	mymutex.unlock();
 	cv::imshow("SmartPoliTech", gframe);	
 }
 

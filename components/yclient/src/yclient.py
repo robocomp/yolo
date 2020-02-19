@@ -1,8 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 #
-# Copyright (C) 2018 by YOUR NAME HERE
+# Copyright (C) 2020 by YOUR NAME HERE
 #
 #    This file is part of RoboComp
 #
@@ -55,20 +55,19 @@
 #
 #
 
-import sys, traceback, IceStorm, subprocess, threading, time, Queue, os, copy
+import sys, traceback, IceStorm, time, os, copy
 
 # Ctrl+c handling
 import signal
 
-from PySide import QtGui, QtCore
+from PySide2 import QtCore
 
 from specificworker import *
 
 
 class CommonBehaviorI(RoboCompCommonBehavior.CommonBehavior):
-	def __init__(self, _handler, _communicator):
+	def __init__(self, _handler):
 		self.handler = _handler
-		self.communicator = _communicator
 	def getFreq(self, current = None):
 		self.handler.getFreq()
 	def setFreq(self, freq, current = None):
@@ -77,20 +76,22 @@ class CommonBehaviorI(RoboCompCommonBehavior.CommonBehavior):
 		try:
 			return self.handler.timeAwake()
 		except:
-			print 'Problem getting timeAwake'
+			print('Problem getting timeAwake')
 	def killYourSelf(self, current = None):
 		self.handler.killYourSelf()
 	def getAttrList(self, current = None):
 		try:
-			return self.handler.getAttrList(self.communicator)
+			return self.handler.getAttrList()
 		except:
-			print 'Problem getting getAttrList'
+			print('Problem getting getAttrList')
 			traceback.print_exc()
 			status = 1
 			return
 
-
-
+#SIGNALS handler
+def sigint_handler(*args):
+	QtCore.QCoreApplication.quit()
+    
 if __name__ == '__main__':
 	app = QtCore.QCoreApplication(sys.argv)
 	params = copy.deepcopy(sys.argv)
@@ -106,54 +107,30 @@ if __name__ == '__main__':
 	for i in ic.getProperties():
 		parameters[str(i)] = str(ic.getProperties().getProperty(i))
 
-	# Topic Manager
-	proxy = ic.getProperties().getProperty("TopicManager.Proxy")
-	obj = ic.stringToProxy(proxy)
-	try:
-		topicManager = IceStorm.TopicManagerPrx.checkedCast(obj)
-	except Ice.ConnectionRefusedException, e:
-		print 'Cannot connect to IceStorm! ('+proxy+')'
-		sys.exit(-1)
-
 	# Remote object connection for YoloServer
 	try:
 		proxyString = ic.getProperties().getProperty('YoloServerProxy')
 		try:
 			basePrx = ic.stringToProxy(proxyString)
-			yoloserver_proxy = YoloServerPrx.checkedCast(basePrx)
+			yoloserver_proxy = YoloServerPrx.uncheckedCast(basePrx)
 			mprx["YoloServerProxy"] = yoloserver_proxy
 		except Ice.Exception:
-			print 'Cannot connect to the remote object (YoloServer)', proxyString
+			print('Cannot connect to the remote object (YoloServer)', proxyString)
 			#traceback.print_exc()
 			status = 1
-	except Ice.Exception, e:
-		print e
-		print 'Cannot get YoloServerProxy property.'
+	except Ice.Exception as e:
+		print(e)
+		print('Cannot get YoloServerProxy property.')
 		status = 1
 
 	if status == 0:
 		worker = SpecificWorker(mprx)
 		worker.setParams(parameters)
+	else:
+		print("Error getting required connections, check config file")
+		sys.exit(-1)
 
-	YoloPublishObjects_adapter = ic.createObjectAdapter("YoloPublishObjectsTopic")
-	yolopublishobjectsI_ = YoloPublishObjectsI(worker)
-	yolopublishobjects_proxy = YoloPublishObjects_adapter.addWithUUID(yolopublishobjectsI_).ice_oneway()
-
-	subscribeDone = False
-	while not subscribeDone:
-		try:
-			yolopublishobjects_topic = topicManager.retrieve("YoloPublishObjects")
-			subscribeDone = True
-		except Ice.Exception, e:
-			print "Error. Topic does not exist (yet)"
-			status = 0
-			time.sleep(1)
-	qos = {}
-	yolopublishobjects_topic.subscribeAndGetPublisher(qos, yolopublishobjects_proxy)
-	YoloPublishObjects_adapter.activate()
-
-
-	signal.signal(signal.SIGINT, signal.SIG_DFL)
+	signal.signal(signal.SIGINT, sigint_handler)
 	app.exec_()
 
 	if ic:

@@ -21,7 +21,7 @@
 /**
  * \brief Default constructor
  */
-SpecificWorker::SpecificWorker(MapPrx& mprx) : GenericWorker(mprx)
+SpecificWorker::SpecificWorker(TuplePrx tprx) : GenericWorker(tprx)
 {}
 
 /**
@@ -45,29 +45,40 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 	
 	cout << "setParams. Network up!" << endl;
 	
-	timer.start(10);
 	return true;
+}
+
+void SpecificWorker::initialize(int period)
+{
+	std::cout << "Initialize worker" << std::endl;
+	this->Period = 50;
+	timer.start(Period);
+
 }
 
 void SpecificWorker::compute()
 {
-	static int cont = 1;
 	static FPSCounter fps;
-	
-	std::vector<std::thread> threadVector;
-	
-	// 	Minimum between queue size and yolo instances to resize the thread pool
-	auto min = std::min( lImgs.size(), YOLO_INSTANCES);
-	for(uint i=0; i < min; i++)
+	auto [index, img] = lImgs.popImageIfNotEmpty();
+	//qDebug() << index << img.image.size();
+	if(index > -1) 
 	{
-		auto [index, img] = lImgs.popImageIfNotEmpty();
-		threadVector.push_back( std::thread(&SpecificWorker::detectLabels, this, ynets[i], std::ref(img), index, .5, .5 ));
-		cont++;
+		qDebug() << "entro";
+		detectLabels(ynets[0], img, index, .5, .5);
 	}
-	for(auto &t : threadVector)
-		t.join();
+
+	// std::vector<std::thread> threadVector;
+	// // 	Minimum between queue size and yolo instances to resize the thread pool
+	// auto min = std::min( lImgs.size(), YOLO_INSTANCES);
+	// for(uint i=0; i < min; i++)
+	// {
+	// 	auto [index, img] = lImgs.popImageIfNotEmpty();
+	// 	threadVector.push_back( std::thread(&SpecificWorker::detectLabels, this, ynets[i], std::ref(img), index, .5, .5 ));
+	// }
+	// for(auto &t : threadVector)
+	// 	t.join();
 	
-	fps.print(cont);
+	fps.print();
 }
 
 yolo::network* SpecificWorker::init_detector() 
@@ -115,11 +126,11 @@ yolo::image SpecificWorker::createImage(const TImage& src)		//reentrant
 //Must be reentrant
 void SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, int requestid, float thresh, float hier_thresh)
 {
-	//ytime1=clock();
-	//image sized = letterbox_image(im, net->w, net->h);
+	// ytime1=clock();
+	// image sized = letterbox_image(im, net->w, net->h);
 	//printf("net\n");
-	//printf("Letterbox elapsed %f mseconds.\n", sec(clock()-time1)*1000);
-	//ytime1=clock();
+	// printf("Letterbox elapsed %f mseconds.\n", sec(clock()-time1)*1000);
+	// ytime1=clock();
 	
 	yolo::image yoloImage = createImage( img );	
 	
@@ -154,7 +165,8 @@ void SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, int re
  			myboxes.emplace_back(RoboCompYoloServer::Box {names[clas], left, top, right, bot, prob*100});
  		}
 	}
-	//qDebug() << __FILE__ << __FUNCTION__ << "LABELS " << myboxes.size();
+	
+	qDebug() << __FILE__ << __FUNCTION__ << "LABELS " << myboxes.size();
 	lImgs.pushResults(requestid, myboxes);
 	free_detections(dets, numboxes);
 	free_image(yoloImage);
@@ -166,7 +178,7 @@ void SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, int re
 ///// SERVANTS
 //////////////////////////////////////////////////////
 
-RoboCompYoloServer::Objects SpecificWorker::processImage(TImage img)
+RoboCompYoloServer::Objects SpecificWorker::YoloServer_processImage(TImage img)
 {
 	//qDebug() << __FUNCTION__ << "Added" << img.image.size() << "w " << img.width << "    h " << img.height;
 	if( img.image.size() != 608*608*3)
@@ -175,13 +187,14 @@ RoboCompYoloServer::Objects SpecificWorker::processImage(TImage img)
 		RoboCompYoloServer::HardwareFailedException e{ "Incorrect size of image: " + std::to_string(img.image.size()) + " bytes. Should be " + std::to_string(608*608*3)};
 		throw e;
 	}
+	qDebug() << img.image.size();
 	auto id = lImgs.pushImage(std::move(img));
 	
 	//bucle de espera
  	std::tuple<int, RoboCompYoloServer::Objects> res;
  	do{ res = lImgs.popResults(id); std::this_thread::sleep_for(20ms); }
  	while( std::get<0>(res) == -1);
-	qDebug() << "Objects " << std::get<1>(res).size();
+	//qDebug() << "Objects " << std::get<1>(res).size();
 	return std::get<1>(res);
 }
 

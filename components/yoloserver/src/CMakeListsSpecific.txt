@@ -5,7 +5,7 @@ SET ( SOURCES
   specificmonitor.cpp
   )
   
-INCLUDE( $ENV{ROBOCOMP}/cmake/modules/opencv.cmake )
+INCLUDE( $ENV{ROBOCOMP}/cmake/modules/opencv3.cmake )
 
 # Headers set
 SET ( HEADERS
@@ -13,7 +13,9 @@ SET ( HEADERS
   specificmonitor.h
 )
 
-add_definitions(-O3 -mavx2 -std=c++17 -DICE_CPP11_MAPPING -I/home/pbustos/software/darknet/include/ -I/home/pbustos/software/darknet/src/ )
+set(CMAKE_CXX_STANDARD 17)
+
+add_definitions(-O3 -mavx2 -DICE_CPP11_MAPPING -I/home/pbustos/software/darknet/include/ -I/home/pbustos/software/darknet/src/ )
 
 SET (LIBS -lopencv_core -lopencv_highgui -lopencv_imgproc  -L/home/pbustos/software/darknet -ldarknet -lIce++11)
 

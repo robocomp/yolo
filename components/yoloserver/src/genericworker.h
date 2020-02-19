@@ -1,5 +1,5 @@
 /*
- *    Copyright (C)2018 by YOUR NAME HERE
+ *    Copyright (C)2020 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -20,37 +20,42 @@
 #define GENERICWORKER_H
 
 #include "config.h"
-#include <QtGui>
 #include <stdint.h>
 #include <qlog/qlog.h>
 
 #include <CommonBehavior.h>
+
 #include <YoloServer.h>
+
 
 #define CHECK_PERIOD 5000
 #define BASIC_PERIOD 100
 
-typedef map <string,::Ice::Object*> MapPrx;
-
-
 using namespace std;
 using namespace RoboCompYoloServer;
 
+using TuplePrx = std::tuple<>;
 
-class GenericWorker : public QObject
+
+class GenericWorker :
+public QObject
 {
 Q_OBJECT
 public:
-	GenericWorker(MapPrx& mprx);
+	GenericWorker(TuplePrx tprx);
 	virtual ~GenericWorker();
 	virtual void killYourSelf();
 	virtual void setPeriod(int p);
+
 	virtual bool setParams(RoboCompCommonBehavior::ParameterList params) = 0;
 	QMutex *mutex;
 
-	virtual Objects processImage(TImage img) = 0;
+
+
+	virtual Objects YoloServer_processImage(TImage img) = 0;
 
 protected:
+
 	QTimer timer;
 	int Period;
 
@@ -59,6 +64,8 @@ private:
 
 public slots:
 	virtual void compute() = 0;
+    virtual void initialize(int period) = 0;
+	
 signals:
 	void kill();
 };

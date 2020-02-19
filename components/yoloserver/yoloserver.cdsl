@@ -6,6 +6,6 @@ Component yoloserver
 	{
 		implements YoloServer;
 	};
-	language Cpp;
+	language Cpp11;
 	
 };

@@ -25,12 +25,6 @@ import numpy as np
 import cv2
 
 
-# If RoboComp was compiled with Python bindings you can use InnerModel in Python
-# sys.path.append('/opt/robocomp/lib')
-# import librobocomp_qmat
-# import librobocomp_osgviewer
-# import librobocomp_innermodel
-
 class SpecificWorker(GenericWorker):
 	def __init__(self, proxy_map):
 		super(SpecificWorker, self).__init__(proxy_map)
@@ -54,49 +48,58 @@ class SpecificWorker(GenericWorker):
 				
 			self.fgbg = cv2.createBackgroundSubtractorMOG2()
 			self.timer.timeout.connect(self.compute)
-			self.Period = 5
+			self.Period = 100
 			self.timer.start(self.Period)
 		except:
 			traceback.print_exc()
-			print "Error reading config params"
+			print("Error reading config params")
 			sys.exit()
 
 	@QtCore.Slot()
 	def compute(self):
-		ret, frame = self.cap.read();
-		frame = cv2.resize(frame,(608,608))   # for full yolo
-		self.drawImage(frame, self.labels)	
+		ret, img = self.cap.read();
+		img = cv2.resize(img,(608,608))   # for full yolo
+		yolo_im = TImage()
+		yolo_im.height, yolo_im.width, yolo_im.depth = img.shape
+		yolo_im.image = img.data
 		
 		try:
-			if self.sem:
-				start = time.time()
+			cv2.imshow('Image', img)
+			objects = self.yoloserver_proxy.processImage(yolo_im)
+			#cv2.imshow('Image', frame);
+			self.drawImage(img, self.labels)	
+			print(len(objects))
+		
+		except  Exception as e:
+			print("error", e)
+		
+		#try:
+			#if self.sem:
+				#start = time.time()
 				#frame = cv2.resize(frame,(416,416))  #tyne yolo
-				fgmask = self.fgbg.apply(frame)
-				kernel = np.ones((5,5),np.uint8)
-				erode = cv2.erode(fgmask, kernel, iterations = 2)
-				dilate = cv2.dilate(erode, kernel, iterations = 2)
+				
+				# fgmask = self.fgbg.apply(frame)
+				# kernel = np.ones((5,5),np.uint8)
+				# erode = cv2.erode(fgmask, kernel, iterations = 2)
+				# dilate = cv2.dilate(erode, kernel, iterations = 2)
 				
 				#if cv2.countNonZero(dilate) > 0:
 				
-				self.myid = self.processFrame(frame)
-				self.sem = False
+				# objects = self.processFrame(frame)
+				# print(len(objects))
+				#self.sem = False
 				
 				#ms = int((time.time() - start) * 1000)
-				#print "elapsed", ms, " ms. FPS: ", int(1000/ms)
-		except Exception as e:
-			print "error", e
+				#print "elapsed", ms, " ms. FPS: ", int(1000/ms)		except Exception as e:
+			#print("error", e)
 	
 	def processFrame(self, img):
-		im = TImage()
-		im.width = img.shape[1]
-		im.height = img.shape[0]
-		im.depth = 3
-		im.image = img.tostring()
+		im = TImage(width=img.shape[1], height=img.shape[0], depth=3, image=img.tostring())
 		try:
 			myid = self.yoloserver_proxy.processImage(im)
 			return myid 
 		except  Exception as e:
-			print "error", e
+			print("error", e)
 	
 	def drawImage(self, img, labels):
 		if len(labels)>0:

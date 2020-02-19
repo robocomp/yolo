@@ -7,10 +7,10 @@ YoloServer.Endpoints=tcp -p 11010
 TopicManager.Proxy=IceStorm/TopicManager:default -p 9999
 
 
-Ice.MessageSizeMax = 1200000
+Ice.MessageSizeMax = 2000000
 
 Ice.ThreadPool.Server.Size = 10
-Ice.ThreadPool.Server.SizeMax = 50
+Ice.ThreadPool.Server.SizeMax = 15
 
 Ice.Warn.Connections=0
 Ice.Trace.Network=0

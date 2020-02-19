@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2018 by YOUR NAME HERE
+ *    Copyright (C) 2020 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -83,7 +83,6 @@
 
 #include <yoloserverI.h>
 
-#include <YoloServer.h>
 
 
 // User includes here
@@ -99,7 +98,7 @@ public:
 private:
 	void initialize();
 	std::string prefix;
-	MapPrx mprx;
+	TuplePrx tprx;
 
 public:
 	virtual int run(int, char*[]);
@@ -135,7 +134,9 @@ int ::yoloserver::run(int argc, char* argv[])
 	string proxy, tmp;
 	initialize();
 
-	SpecificWorker *worker = new SpecificWorker(mprx);
+
+	tprx = std::tuple<>();
+	SpecificWorker *worker = new SpecificWorker(tprx);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());
 	QObject::connect(monitor, SIGNAL(kill()), &a, SLOT(quit()));
@@ -152,30 +153,43 @@ int ::yoloserver::run(int argc, char* argv[])
 
 	try
 	{
-		// Server adapter creation and publication
-		if (not GenericMonitor::configGetString(communicator(), prefix, "CommonBehavior.Endpoints", tmp, ""))
-		{
-			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy CommonBehavior\n";
+		try {
+			// Server adapter creation and publication
+			if (not GenericMonitor::configGetString(communicator(), prefix, "CommonBehavior.Endpoints", tmp, "")) {
+				cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy CommonBehavior\n";
+			}
+			Ice::ObjectAdapterPtr adapterCommonBehavior = communicator()->createObjectAdapterWithEndpoints("commonbehavior", tmp);
+			auto commonbehaviorI = std::make_shared<CommonBehaviorI>(monitor);
+			adapterCommonBehavior->add(commonbehaviorI, Ice::stringToIdentity("commonbehavior"));
+			adapterCommonBehavior->activate();
 		}
-		Ice::ObjectAdapterPtr adapterCommonBehavior = communicator()->createObjectAdapterWithEndpoints("commonbehavior", tmp);
-		//CommonBehaviorI *commonbehaviorI = new CommonBehaviorI(monitor );
-		auto commonbehaviorI = make_shared<CommonBehaviorI>(monitor);
-		adapterCommonBehavior->add(commonbehaviorI, Ice::stringToIdentity("commonbehavior"));
-		adapterCommonBehavior->activate();
-
-		// Server adapter creation and publication
-		if (not GenericMonitor::configGetString(communicator(), prefix, "YoloServer.Endpoints", tmp, ""))
+		catch(const Ice::Exception& ex)
 		{
-			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy YoloServer";
+			status = EXIT_FAILURE;
+
+			cout << "[" << PROGRAM_NAME << "]: Exception raised while creating CommonBehavior adapter: " << endl;
+			cout << ex;
+
 		}
-		Ice::ObjectAdapterPtr adapterYoloServer = communicator()->createObjectAdapterWithEndpoints("YoloServer", tmp);
-		//YoloServerI *yoloserver = new YoloServerI(worker);
-		auto yoloserver = make_shared<YoloServerI>(worker);
-		adapterYoloServer->add(yoloserver, Ice::stringToIdentity("yoloserver"));
-		adapterYoloServer->activate();
-		cout << "[" << PROGRAM_NAME << "]: YoloServer adapter created in port " << tmp << endl;
 
 
+
+		try
+		{
+			// Server adapter creation and publication
+			if (not GenericMonitor::configGetString(communicator(), prefix, "YoloServer.Endpoints", tmp, ""))
+			{
+				cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy YoloServer";
+			}
+			Ice::ObjectAdapterPtr adapterYoloServer = communicator()->createObjectAdapterWithEndpoints("YoloServer", tmp);
+			auto yoloserver = std::make_shared<YoloServerI>(worker);
+			adapterYoloServer->add(yoloserver, Ice::stringToIdentity("yoloserver"));
+			adapterYoloServer->activate();
+			cout << "[" << PROGRAM_NAME << "]: YoloServer adapter created in port " << tmp << endl;
+			}
+			catch (const IceStorm::TopicExists&){
+				cout << "[" << PROGRAM_NAME << "]: ERROR creating or activating adapter for YoloServer\n";
+			}
 
 
 
@@ -184,10 +198,10 @@ int ::yoloserver::run(int argc, char* argv[])
 
 		// User defined QtGui elements ( main window, dialogs, etc )
 
-#ifdef USE_QTGUI
-		//ignoreInterrupt(); // Uncomment if you want the component to ignore console SIGINT signal (ctrl+c).
-		a.setQuitOnLastWindowClosed( true );
-#endif
+		#ifdef USE_QTGUI
+			//ignoreInterrupt(); // Uncomment if you want the component to ignore console SIGINT signal (ctrl+c).
+			a.setQuitOnLastWindowClosed( true );
+		#endif
 		// Run QT Application Event Loop
 		a.exec();
 
@@ -201,12 +215,16 @@ int ::yoloserver::run(int argc, char* argv[])
 		cout << "[" << PROGRAM_NAME << "]: Exception raised on main thread: " << endl;
 		cout << ex;
 
-#ifdef USE_QTGUI
+	}
+	#ifdef USE_QTGUI
 		a.quit();
-#endif
-		monitor->exit(0);
-}
+	#endif
 
+	status = EXIT_SUCCESS;
+	monitor->terminate();
+	monitor->wait();
+	delete worker;
+	delete monitor;
 	return status;
 }
 

@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2018 by YOUR NAME HERE
+ *    Copyright (C) 2020 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -30,6 +30,6 @@ YoloServerI::~YoloServerI()
 
 Objects YoloServerI::processImage(TImage img, const Ice::Current&)
 {
-	return worker->processImage(img);
+	return worker->YoloServer_processImage(img);
 }
 

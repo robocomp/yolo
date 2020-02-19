@@ -36,8 +36,7 @@
 #include <thread>
 #include <chrono>
 #include "/home/pbustos/software/darknet/include/darknet.h"	
-	
-using namespace std::chrono_literals;
+
 
 extern "C" 
 {
@@ -48,6 +47,9 @@ extern "C"
 	void cuda_set_device(int);
 }
 
+using namespace std::chrono_literals;
+
+
 class FPSCounter
 {
 	public:
@@ -55,7 +57,7 @@ class FPSCounter
 		{
 			begin = std::chrono::high_resolution_clock::now();
 		}
-		void print( int &cont, const unsigned int msPeriod = 1000)  
+		void print(const unsigned int msPeriod = 1000)  
 		{
 			auto end = std::chrono::high_resolution_clock::now();
 			auto elapsed = std::chrono::duration<double>(end - begin).count() * 1000;
@@ -65,21 +67,25 @@ class FPSCounter
 				begin = std::chrono::high_resolution_clock::now();
 				cont = 0;
 			}
+			else
+				cont++;
 		}
 		std::chrono::time_point<std::chrono::high_resolution_clock> begin;
+		int cont = 1;
 };
 
 class SpecificWorker : public GenericWorker
 {
 		Q_OBJECT
 		public:
-			SpecificWorker(MapPrx& mprx);
+			SpecificWorker(TuplePrx tprx);
 			~SpecificWorker();
 			bool setParams(RoboCompCommonBehavior::ParameterList params);
-			RoboCompYoloServer::Objects processImage(TImage img);
+			RoboCompYoloServer::Objects YoloServer_processImage(TImage img);
 			
 		public slots:
 			void compute();
+			void initialize(int period);
 
 		private:
 			yolo::image createImage(const TImage& src);

@@ -6,5 +6,5 @@ Component yclient
 	{
 		requires YoloServer;
 	};
-	language Cpp;
+	language Cpp11;
 };

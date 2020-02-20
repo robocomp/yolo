@@ -89,8 +89,9 @@ class SpecificWorker : public GenericWorker
 
 		private:
 			yolo::image createImage(const TImage& src);
+			yolo::image createImage(const cv::Mat &src);
 			network* init_detector(); 
-			void detectLabels(yolo::network *ynet, const TImage &img, int requestid, float thresh, float hier_thresh);
+			void detectLabels(yolo::network *ynet, const yolo::image &img, int requestid, float thresh, float hier_thresh);
 			
 			template<typename T>
 			struct ImgSafeBuffer

@@ -32,9 +32,7 @@ class SpecificWorker(GenericWorker):
 		self.sem = True
 		self.labels = []
 		self.myid = -1
-		self.Period = 20
-		self.timer.start(self.Period)
-
+		
 	def setParams(self, params):
 		try:
 			camera = params["Camera"]
@@ -48,7 +46,7 @@ class SpecificWorker(GenericWorker):
 				
 			self.fgbg = cv2.createBackgroundSubtractorMOG2()
 			self.timer.timeout.connect(self.compute)
-			self.Period = 100
+			self.Period = 50
 			self.timer.start(self.Period)
 		except:
 			traceback.print_exc()
@@ -57,22 +55,20 @@ class SpecificWorker(GenericWorker):
 
 	@QtCore.Slot()
 	def compute(self):
-		ret, img = self.cap.read();
-		img = cv2.resize(img,(608,608))   # for full yolo
-		yolo_im = TImage()
-		yolo_im.height, yolo_im.width, yolo_im.depth = img.shape
-		yolo_im.image = img.data
-		
+		ret, img = self.cap.read()
+		img = cv2.resize(img,(608,608),0 ,0, interpolation = cv2.INTER_LINEAR)   # for full yolo
+		#print(img.shape)
+		yolo_im = TImage(height=img.shape[0], width=img.shape[1], depth=img.shape[2], image=img)
+		#cv2.imshow('Image', img)	
+
 		try:
-			cv2.imshow('Image', img)
 			objects = self.yoloserver_proxy.processImage(yolo_im)
-			#cv2.imshow('Image', frame);
-			self.drawImage(img, self.labels)	
+			self.drawImage(img, objects)	
 			print(len(objects))
-		
+			
 		except  Exception as e:
 			print("error", e)
-		
+			
 		#try:
 			#if self.sem:
 				#start = time.time()
@@ -111,18 +107,18 @@ class SpecificWorker(GenericWorker):
 					cv2.rectangle(img, p1, p2, (0, 0, 255), 4)
 					font = cv2.FONT_HERSHEY_SIMPLEX
 					cv2.putText(img, box.name + " " + str(int(box.prob)) + "%", pt, font, 1, (255, 255, 255), 2)
-		cv2.imshow('Image', img);
-		cv2.waitKey(2);
-	
+		cv2.imshow('Image', img)
+		cv2.waitKey(2)
+		
 	#
 	# newObjects
 	#
-	def newObjects(self, id, objs):
-		#print "received", len(objs)
-		if (id == self.myid):
-			self.labels = objs
-			#print "#########################################'"
-			#print self.labels
-			self.sem = True
+	# def newObjects(self, id, objs):
+	# 	#print "received", len(objs)
+	# 	if (id == self.myid):
+	# 		self.labels = objs
+	# 		#print "#########################################'"
+	# 		#print self.labels
+	# 		self.sem = True
 			
 

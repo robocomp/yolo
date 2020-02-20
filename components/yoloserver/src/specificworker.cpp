@@ -63,8 +63,12 @@ void SpecificWorker::compute()
 	//qDebug() << index << img.image.size();
 	if(index > -1) 
 	{
-		qDebug() << "entro";
-		detectLabels(ynets[0], img, index, .5, .5);
+		//cv::Mat image = cv::Mat(img.height, img.width, CV_8UC3, &img.image[0]);
+		//cv::resize(image, image, cv::Size(608,608), 0, 0, CV_INTER_LINEAR);
+		//qDebug() << image.cols << image.rows;
+		//cv::imshow("", image);
+		//cv::waitKey(1);
+		detectLabels(ynets[0], createImage(img), index, .5, .5);
 	}
 
 	// std::vector<std::thread> threadVector;
@@ -103,6 +107,26 @@ yolo::network* SpecificWorker::init_detector()
 //	ynms=.4;
 }
 
+yolo::image SpecificWorker::createImage(const cv::Mat &src)		//reentrant
+{
+	const int &h = src.rows;
+	const int &w = src.cols;
+	const int &c = src.depth();
+	int step = w*c;
+	
+	int i, j, k;
+	image out = make_image(w, h, c);
+	
+	for(i = 0; i < h; ++i){
+		for(k= 0; k < c; ++k){
+			for(j = 0; j < w; ++j){
+				out.data[k*w*h + i*w + j] = src.data[i*step + j*c + k]/255.;
+			}
+		}
+	}
+	return out;
+}
+
 yolo::image SpecificWorker::createImage(const TImage& src)		//reentrant
 {
 	const int &h = src.height;
@@ -124,7 +148,7 @@ yolo::image SpecificWorker::createImage(const TImage& src)		//reentrant
 }
 
 //Must be reentrant
-void SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, int requestid, float thresh, float hier_thresh)
+void SpecificWorker::detectLabels(yolo::network *ynet, const yolo::image &yoloImage, int requestid, float thresh, float hier_thresh)
 {
 	// ytime1=clock();
 	// image sized = letterbox_image(im, net->w, net->h);
@@ -132,7 +156,7 @@ void SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, int re
 	// printf("Letterbox elapsed %f mseconds.\n", sec(clock()-time1)*1000);
 	// ytime1=clock();
 	
-	yolo::image yoloImage = createImage( img );	
+	//yolo::image yoloImage = createImage( img );	
 	
 	layer l = ynet->layers[ynet->n-1];
 	network_predict(ynet, yoloImage.data);	
@@ -164,15 +188,12 @@ void SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, int re
  			if(bot > yoloImage.h-1) bot = yoloImage.h-1;
  			myboxes.emplace_back(RoboCompYoloServer::Box {names[clas], left, top, right, bot, prob*100});
  		}
-	}
-	
+	}	
 	qDebug() << __FILE__ << __FUNCTION__ << "LABELS " << myboxes.size();
 	lImgs.pushResults(requestid, myboxes);
 	free_detections(dets, numboxes);
 	free_image(yoloImage);
 }
-
-
 
 ///////////////////////////////////////////////////////
 ///// SERVANTS
@@ -181,13 +202,15 @@ void SpecificWorker::detectLabels(yolo::network *ynet, const TImage &img, int re
 RoboCompYoloServer::Objects SpecificWorker::YoloServer_processImage(TImage img)
 {
 	//qDebug() << __FUNCTION__ << "Added" << img.image.size() << "w " << img.width << "    h " << img.height;
-	if( img.image.size() != 608*608*3)
-	{
-		qDebug() << __FILE__ << __FUNCTION__ << "Incorrect size of image: " << img.image.size() << " bytes. Should be " << 608*608*3;
-		RoboCompYoloServer::HardwareFailedException e{ "Incorrect size of image: " + std::to_string(img.image.size()) + " bytes. Should be " + std::to_string(608*608*3)};
-		throw e;
-	}
-	qDebug() << img.image.size();
+	// if( img.image.size() != 608*608*3)
+	// {
+	// 	qDebug() << __FILE__ << __FUNCTION__ << "Incorrect size of image: " << img.image.size() << " bytes. Should be " << 608*608*3;
+	// 	RoboCompYoloServer::HardwareFailedException e{ "Incorrect size of image: " + std::to_string(img.image.size()) + " bytes. Should be " + std::to_string(608*608*3)};
+	// 	throw e;
+	// }
+ 
+	//cv::resize(image, image, cv::Size({608,608}));
+	//qDebug() << image;
 	auto id = lImgs.pushImage(std::move(img));
 	
 	//bucle de espera

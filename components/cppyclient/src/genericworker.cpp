@@ -1,5 +1,5 @@
 /*
- *    Copyright (C)2018 by YOUR NAME HERE
+ *    Copyright (C)2020 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -20,15 +20,37 @@
 /**
 * \brief Default constructor
 */
-GenericWorker::GenericWorker( const TuplaPrx &tprx) : QObject()
+GenericWorker::GenericWorker(TuplePrx tprx) :
+QObject()
 {
-	std::tie( yoloserver_proxy )  = tprx;
+
+//Initialization State machine
+	computeState = new QState(QState::ExclusiveStates);
+	defaultMachine.addState(computeState);
+	initializeState = new QState(QState::ExclusiveStates);
+	defaultMachine.addState(initializeState);
+	finalizeState = new QFinalState();
+	defaultMachine.addState(finalizeState);
+
+	defaultMachine.setInitialState(initializeState);
+
+	initializeState->addTransition(this, SIGNAL(t_initialize_to_compute()), computeState);
+	computeState->addTransition(this, SIGNAL(t_compute_to_compute()), computeState);
+	computeState->addTransition(this, SIGNAL(t_compute_to_finalize()), finalizeState);
+
+	QObject::connect(computeState, SIGNAL(entered()), this, SLOT(sm_compute()));
+	QObject::connect(initializeState, SIGNAL(entered()), this, SLOT(sm_initialize()));
+	QObject::connect(finalizeState, SIGNAL(entered()), this, SLOT(sm_finalize()));
+	QObject::connect(&timer, SIGNAL(timeout()), this, SIGNAL(t_compute_to_compute()));
+
+//------------------
+	yoloserver_proxy = std::get<0>(tprx);
 
 	mutex = new QMutex(QMutex::Recursive);
 
 	Period = BASIC_PERIOD;
 	connect(&timer, SIGNAL(timeout()), this, SLOT(compute()));
-// 	timer.start(Period);
+
 }
 
 /**

@@ -38,6 +38,13 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 	
 	std::cout << "setParams. Initializing network" << std::endl;
 	
+	try
+	{
+		RoboCompCommonBehavior::Parameter par = params.at("ShowImage");
+		SHOW_IMAGE = (par.value == "true");
+	}
+	catch(const std::exception &e) { qFatal("Error reading config params"); }
+
 	for(uint i=0; i<YOLO_INSTANCES; ++i)
 		ynets.emplace_back(init_detector());
 		
@@ -60,15 +67,23 @@ void SpecificWorker::compute()
 {
 	static FPSCounter fps;
 	auto [index, img] = lImgs.popImageIfNotEmpty();
-	//qDebug() << index << img.image.size();
 	if(index > -1) 
 	{
-		//cv::Mat image = cv::Mat(img.height, img.width, CV_8UC3, &img.image[0]);
-		//cv::resize(image, image, cv::Size(608,608), 0, 0, CV_INTER_LINEAR);
-		//qDebug() << image.cols << image.rows;
-		//cv::imshow("", image);
-		//cv::waitKey(1);
-		detectLabels(ynets[0], createImage(img), index, .5, .5);
+		if(img.height != 608 or img.width != 608)
+		{
+			cv::Mat image = cv::Mat(img.height, img.width, CV_8UC3, &img.image[0]);
+			cv::resize(image, image, cv::Size(608,608), 0, 0, CV_INTER_LINEAR);
+			detectLabels(ynets[0], createImage(img), index, .5, .5);
+		}
+		else
+			detectLabels(ynets[0], createImage(img), index, .5, .5);
+
+		if(SHOW_IMAGE)
+		{
+			cv::Mat image = cv::Mat(img.height, img.width, CV_8UC3, &img.image[0]);	
+			cv::imshow("", image);
+			cv::waitKey(1);
+		}
 	}
 
 	// std::vector<std::thread> threadVector;
@@ -189,7 +204,7 @@ void SpecificWorker::detectLabels(yolo::network *ynet, const yolo::image &yoloIm
  			myboxes.emplace_back(RoboCompYoloServer::Box {names[clas], left, top, right, bot, prob*100});
  		}
 	}	
-	qDebug() << __FILE__ << __FUNCTION__ << "LABELS " << myboxes.size();
+	//qDebug() << __FILE__ << __FUNCTION__ << "LABELS " << myboxes.size();
 	lImgs.pushResults(requestid, myboxes);
 	free_detections(dets, numboxes);
 	free_image(yoloImage);
@@ -211,13 +226,14 @@ RoboCompYoloServer::Objects SpecificWorker::YoloServer_processImage(TImage img)
  
 	//cv::resize(image, image, cv::Size({608,608}));
 	//qDebug() << image;
-	auto id = lImgs.pushImage(std::move(img));
 	
+	auto id = lImgs.pushImage(std::move(img));
+
 	//bucle de espera
  	std::tuple<int, RoboCompYoloServer::Objects> res;
+	
  	do{ res = lImgs.popResults(id); std::this_thread::sleep_for(20ms); }
  	while( std::get<0>(res) == -1);
-	//qDebug() << "Objects " << std::get<1>(res).size();
 	return std::get<1>(res);
 }
 

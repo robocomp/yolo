@@ -7,4 +7,6 @@ Component yclient
 		requires YoloServer;
 	};
 	language Cpp11;
+	statemachine "statemachine.smdsl";
 };
+

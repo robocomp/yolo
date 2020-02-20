@@ -11,7 +11,9 @@ SET ( HEADERS
   specificmonitor.h
 )
 
-ADD_DEFINITIONS( -g -std=c++17 -DICE_CPP11_MAPPING)
+set(CMAKE_CXX_STANDARD 17)
+
+ADD_DEFINITIONS( -g -std=c++17 -DICE_CPP11_MAPPING -fmax-errors=5)
 SET ( SPECIFIC_LIBS  -lopencv_imgproc -lopencv_core -lopencv_highgui  -lopencv_videoio -lopencv_ml  )
 
 

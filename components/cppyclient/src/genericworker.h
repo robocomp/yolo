@@ -1,5 +1,5 @@
 /*
- *    Copyright (C)2018 by YOUR NAME HERE
+ *    Copyright (C)2020 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -20,52 +20,76 @@
 #define GENERICWORKER_H
 
 #include "config.h"
-#include <QtGui>
 #include <stdint.h>
 #include <qlog/qlog.h>
 
-
+#include <QStateMachine>
+#include <QState>
 #include <CommonBehavior.h>
 
 #include <YoloServer.h>
 
+
 #define CHECK_PERIOD 5000
 #define BASIC_PERIOD 100
-
-//typedef map <string, Ice::Object*> MapPrx;
-typedef std::tuple<RoboCompYoloServer::YoloServerPrxPtr> TuplaPrx;
 
 using namespace std;
 using namespace RoboCompYoloServer;
 
+using TuplePrx = std::tuple<RoboCompYoloServer::YoloServerPrxPtr>;
 
-class GenericWorker : public QObject
+
+class GenericWorker :
+public QObject
 {
-	Q_OBJECT
-	public:
-		GenericWorker(const TuplaPrx &tprx);
-		virtual ~GenericWorker();
-		virtual void killYourSelf();
-		virtual void setPeriod(int p);
+Q_OBJECT
+public:
+	GenericWorker(TuplePrx tprx);
+	virtual ~GenericWorker();
+	virtual void killYourSelf();
+	virtual void setPeriod(int p);
 
-		virtual bool setParams(RoboCompCommonBehavior::ParameterList params) = 0;
-		QMutex *mutex;
-
-
-		YoloServerPrxPtr yoloserver_proxy;
+	virtual bool setParams(RoboCompCommonBehavior::ParameterList params) = 0;
+	QMutex *mutex;
 
 
-	protected:
-		QTimer timer;
-		int Period;
-
-	private:
+	YoloServerPrxPtr yoloserver_proxy;
 
 
-	public slots:
-		virtual void compute() = 0;
-	signals:
-		void kill();
-	};
+protected:
+//State Machine
+	QStateMachine defaultMachine;
+
+	QState *computeState;
+	QState *initializeState;
+	QFinalState *finalizeState;
+
+//-------------------------
+
+	QTimer timer;
+	int Period;
+
+private:
+
+
+public slots:
+//Slots funtion State Machine
+	virtual void sm_compute() = 0;
+	virtual void sm_initialize() = 0;
+	virtual void sm_finalize() = 0;
+
+//-------------------------
+	virtual void compute() = 0;
+    virtual void initialize(int period) = 0;
+	
+signals:
+	void kill();
+//Signals for State Machine
+	void t_initialize_to_compute();
+	void t_compute_to_compute();
+	void t_compute_to_finalize();
+
+//-------------------------
+};
 
 #endif

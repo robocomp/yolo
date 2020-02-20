@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2018 by YOUR NAME HERE
+ *    Copyright (C) 2020 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -81,7 +81,8 @@
 #include "specificmonitor.h"
 #include "commonbehaviorI.h"
 
-#include <YoloServer.h>
+
+
 
 // User includes here
 
@@ -96,7 +97,7 @@ public:
 private:
 	void initialize();
 	std::string prefix;
-	//MapPrx mprx;
+	TuplePrx tprx;
 
 public:
 	virtual int run(int, char*[]);
@@ -129,7 +130,7 @@ int ::yclient::run(int argc, char* argv[])
 	int status=EXIT_SUCCESS;
 
 	YoloServerPrxPtr yoloserver_proxy;
-	TuplaPrx tprx;
+
 	string proxy, tmp;
 	initialize();
 
@@ -140,21 +141,17 @@ int ::yclient::run(int argc, char* argv[])
 		{
 			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy YoloServerProxy\n";
 		}
-		//yoloserver_proxy = YoloServerPrx::uncheckedCast( Ice::stringToProxy( proxy ) );
-		auto base = communicator()->stringToProxy( proxy ) ;
-		yoloserver_proxy = Ice::checkedCast<YoloServerPrx>(base);
-	
-		rInfo("YoloServerProxy initialized Ok!");
-	
-		//mprx["YoloServerProxy"] = (::Ice::Object*)(&yoloserver_proxy);//Remote server proxy creation example
-		tprx = std::make_tuple(yoloserver_proxy);
+		yoloserver_proxy = Ice::uncheckedCast<YoloServerPrx>( communicator()->stringToProxy( proxy ) );
 	}
 	catch(const Ice::Exception& ex)
 	{
-		cout << "[" << PROGRAM_NAME << "]: Exception: " << ex;
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy YoloServer: " << ex;
 		return EXIT_FAILURE;
 	}
-	
+	rInfo("YoloServerProxy initialized Ok!");
+
+
+	tprx = std::make_tuple(yoloserver_proxy);
 	SpecificWorker *worker = new SpecificWorker(tprx);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());
@@ -172,15 +169,26 @@ int ::yclient::run(int argc, char* argv[])
 
 	try
 	{
-		// Server adapter creation and publication
-		if (not GenericMonitor::configGetString(communicator(), prefix, "CommonBehavior.Endpoints", tmp, ""))
-		{
-			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy CommonBehavior\n";
+		try {
+			// Server adapter creation and publication
+			if (not GenericMonitor::configGetString(communicator(), prefix, "CommonBehavior.Endpoints", tmp, "")) {
+				cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy CommonBehavior\n";
+			}
+			Ice::ObjectAdapterPtr adapterCommonBehavior = communicator()->createObjectAdapterWithEndpoints("commonbehavior", tmp);
+			auto commonbehaviorI = std::make_shared<CommonBehaviorI>(monitor);
+			adapterCommonBehavior->add(commonbehaviorI, Ice::stringToIdentity("commonbehavior"));
+			adapterCommonBehavior->activate();
 		}
-		Ice::ObjectAdapterPtr adapterCommonBehavior = communicator()->createObjectAdapterWithEndpoints("commonbehavior", tmp);
-		auto commonbehaviorI = make_shared<CommonBehaviorI>(monitor);
-		adapterCommonBehavior->add(commonbehaviorI, Ice::stringToIdentity("commonbehavior"));
-		adapterCommonBehavior->activate();
+		catch(const Ice::Exception& ex)
+		{
+			status = EXIT_FAILURE;
+
+			cout << "[" << PROGRAM_NAME << "]: Exception raised while creating CommonBehavior adapter: " << endl;
+			cout << ex;
+
+		}
+
+
 
 
 		// Server adapter creation and publication
@@ -188,10 +196,10 @@ int ::yclient::run(int argc, char* argv[])
 
 		// User defined QtGui elements ( main window, dialogs, etc )
 
-#ifdef USE_QTGUI
-		//ignoreInterrupt(); // Uncomment if you want the component to ignore console SIGINT signal (ctrl+c).
-		a.setQuitOnLastWindowClosed( true );
-#endif
+		#ifdef USE_QTGUI
+			//ignoreInterrupt(); // Uncomment if you want the component to ignore console SIGINT signal (ctrl+c).
+			a.setQuitOnLastWindowClosed( true );
+		#endif
 		// Run QT Application Event Loop
 		a.exec();
 
@@ -205,12 +213,16 @@ int ::yclient::run(int argc, char* argv[])
 		cout << "[" << PROGRAM_NAME << "]: Exception raised on main thread: " << endl;
 		cout << ex;
 
-#ifdef USE_QTGUI
+	}
+	#ifdef USE_QTGUI
 		a.quit();
-#endif
-		monitor->exit(0);
-}
+	#endif
 
+	status = EXIT_SUCCESS;
+	monitor->terminate();
+	monitor->wait();
+	delete worker;
+	delete monitor;
 	return status;
 }
 

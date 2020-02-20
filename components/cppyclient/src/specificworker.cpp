@@ -21,7 +21,7 @@
 /**
 * \brief Default constructor
 */
-SpecificWorker::SpecificWorker(const TuplaPrx &tprx) : GenericWorker(tprx)
+SpecificWorker::SpecificWorker(TuplePrx tprx) : GenericWorker(tprx)
 {}
 
 /**
@@ -34,102 +34,138 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
 	// XInitThreads();
 	NUM_CAMERAS = 2;
-	threadList.resize(NUM_CAMERAS);
+	//threadList.resize(NUM_CAMERAS);
+	
 	//threadList[0] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/UFC.229.Khabib.vs.McGregor.HDTV.x264-Star.mp4");
 	//threadList[1] = std::make_tuple( std::thread(), cv::Mat(), "/home/pbustos/Downloads/openpose_final1.mp4");
-	threadList[0] = std::make_tuple( 0, std::thread(), cv::Mat(), -1, Objects());
-	threadList[1] = std::make_tuple( 1, std::thread(), cv::Mat(), -1, Objects());
 	
-	auto proxy = yoloserver_proxy;
-	auto li_size = i_size;
+	//threadList[0] = std::make_tuple( 0, std::thread(), cv::Mat(), -1, Objects());
+	//threadList[1] = std::make_tuple( 1, std::thread(), cv::Mat(), -1, Objects());
+	
+	// auto proxy = yoloserver_proxy;
+	// auto li_size = i_size;
 
-	for(auto &[cam, t, frame, id, objs] : threadList)
-	{
-		t = std::thread([&frame, cam, proxy, &id, &objs, li_size, this]
-					{ 
-						cv::VideoCapture cap(cam); 
-						if(cap.isOpened() == false)
-						{
-							std::cout << "Camera " << cam << " could not be opened" << std::endl;
-							return;
-						}
-// 						cv::Mat framebw, framedilate, framefinal, fgMaskMOG2; 
-// 						auto pMOG2 = cv::createBackgroundSubtractorMOG2();
-						RoboCompYoloServer::TImage yimage{li_size, li_size, 3, ImgType(li_size*li_size*3)};
-						while(true)
-						{ 
-							mymutex.lock();
-							cap >> frame; 
-							if(frame.empty())
-								continue;
-							cv::resize(frame,frame, cv::Size(li_size,li_size));
-// 							cv::cvtColor(frame, framebw, cv::COLOR_BGR2GRAY);
-// 							pMOG2->apply(framebw, fgMaskMOG2);
-// 							cv::dilate(fgMaskMOG2, framedilate, cv::Mat());
-// 							cv::erode(framedilate, framefinal, cv::Mat());
-// 							if( cv::countNonZero(framefinal) > 100 )
-							{
-								//qDebug() << "pntos " << cv::countNonZero(framefinal) << " " << name;
+// 	for(auto &[cam, t, frame, id, objs] : threadList)
+// 	{
+// 		t = std::thread([&frame, cam, proxy, &id, &objs, li_size, this]
+// 					{ 
+// 						cv::VideoCapture cap(cam); 
+// 						if(cap.isOpened() == false)
+// 						{
+// 							std::cout << "Camera " << cam << " could not be opened" << std::endl;
+// 							return;
+// 						}
+// // 						cv::Mat framebw, framedilate, framefinal, fgMaskMOG2; 
+// // 						auto pMOG2 = cv::createBackgroundSubtractorMOG2();
+// 						RoboCompYoloServer::TImage yimage{li_size, li_size, 3, ImgType(li_size*li_size*3)};
+// 						while(true)
+// 						{ 
+// 							mymutex.lock();
+// 							cap >> frame; 
+// 							if(frame.empty())
+// 								continue;
+// 							cv::resize(frame,frame, cv::Size(li_size,li_size));
+// // 							cv::cvtColor(frame, framebw, cv::COLOR_BGR2GRAY);
+// // 							pMOG2->apply(framebw, fgMaskMOG2);
+// // 							cv::dilate(fgMaskMOG2, framedilate, cv::Mat());
+// // 							cv::erode(framedilate, framefinal, cv::Mat());
+// // 							if( cv::countNonZero(framefinal) > 100 )
+// 							{
+// 								//qDebug() << "pntos " << cv::countNonZero(framefinal) << " " << name;
 								
-								if (frame.isContinuous()) 
-									yimage.image.assign(frame.datastart, frame.dataend);
-								else
-								{
-									std::cout << "Frame not continuous in camera" <<  cam <<std::endl;
-									continue;
-								}
-								try
-								{ 
-									//auto fut = proxy->processImageAsync(yimage);
-									objs = proxy->processImage(yimage);
-									//objs = fut.get();
-									//objs = proxy->processImage(yimage);
-								} 
-								catch(const Ice::Exception &e){std::cout << "shit " << e.what() << std::endl;};
-							}
-							mymutex.unlock();
-							std::this_thread::sleep_for(50ms);
-						}
-					});
-	}
-	t_width=2; t_height=1;
- 	gframe = cv::Mat::zeros( i_height * t_height, i_width * t_width, CV_8UC3);
+// 								if (frame.isContinuous()) 
+// 									yimage.image.assign(frame.datastart, frame.dataend);
+// 								else
+// 								{
+// 									std::cout << "Frame not continuous in camera" <<  cam <<std::endl;
+// 									continue;
+// 								}
+// 								try
+// 								{ 
+// 									//auto fut = proxy->processImageAsync(yimage);
+// 									objs = proxy->processImage(yimage);
+// 									//objs = fut.get();
+// 									//objs = proxy->processImage(yimage);
+// 								} 
+// 								catch(const Ice::Exception &e){std::cout << "shit " << e.what() << std::endl;};
+// 							}
+// 							mymutex.unlock();
+// 							std::this_thread::sleep_for(50ms);
+// 						}
+// 					});
+// 	}
+// 	t_width=2; t_height=1;
+//  	gframe = cv::Mat::zeros( i_height * t_height, i_width * t_width, CV_8UC3);
  	
-	timer.start(50);
 	return true;
+}
+
+
+void SpecificWorker::initialize(int period)
+{
+	std::cout << "Initialize worker" << std::endl;
+
+	int cam = 0;
+	cap.open(cam);
+
+	if(cap.isOpened() == false)
+	{
+	 	std::cout << "Camera " << cam << " could not be opened" << std::endl;
+		return;
+	}
+
+	this->Period = 50;
+	timer.start(Period);
+	emit this->t_initialize_to_compute();
 }
 
 void SpecificWorker::compute()
 {
- 	static auto positions = iter::product(iter::range(t_width),iter::range(t_height));
+	qDebug() << "compute";
+ 	//static auto positions = iter::product(iter::range(t_width),iter::range(t_height));
  	
-	mymutex.lock();
- 	if( std::adjacent_find( threadList.begin(), threadList.end(), [](auto &a, auto &b){ return std::get<2>(a).size[0] != std::get<2>(b).size[0];}) != threadList.end())
- 	{	
- 		std::cout << "Not all images have the same shape: " <<  std::endl;
-  		return;
- 	}
+	// mymutex.lock();
+ 	// if( std::adjacent_find( threadList.begin(), threadList.end(), [](auto &a, auto &b){ return std::get<2>(a).size[0] != std::get<2>(b).size[0];}) != threadList.end())
+ 	// {	
+ 	// 	std::cout << "Not all images have the same shape: " <<  std::endl;
+  	// 	return;
+ 	// }
 	
-	for (auto&& [pos, tupla] : iter::zip(positions, threadList)) 
-	{	
-		auto &&[cam, t, frame, id, objs] = tupla;
-		if(frame.empty() or frame.cols != this->i_size or frame.rows != this->i_size)
-			continue;
+	// for (auto&& [pos, tupla] : iter::zip(positions, threadList)) 
+	// {	
+	// 	auto &&[cam, t, frame, id, objs] = tupla;
+	// 	if(frame.empty() or frame.cols != this->i_size or frame.rows != this->i_size)
+	// 		continue;
 				
-		for( auto &&box : objs)
-		{
-			cv::rectangle(frame, cv::Point(box.left, box.top), cv::Point(box.right, box.bot), cv::Scalar(0, 255, 0));
-			cv::putText(frame, box.name, cv::Point(box.left, box.top), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 200, 200), 4);
-		}
+	// 	for( auto &&box : objs)
+	// 	{
+	// 		cv::rectangle(frame, cv::Point(box.left, box.top), cv::Point(box.right, box.bot), cv::Scalar(0, 255, 0));
+	// 		cv::putText(frame, box.name, cv::Point(box.left, box.top), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 200, 200), 4);
+	// 	}
 		
-		auto &&[x_i, y_i] = pos;
-		frame.copyTo(gframe(cv::Rect(x_i * i_width, y_i * i_height, i_width, i_height)));
-	}
-	mymutex.unlock();
-	cv::imshow("SmartPoliTech", gframe);	
+	// 	auto &&[x_i, y_i] = pos;
+	// 	frame.copyTo(gframe(cv::Rect(x_i * i_width, y_i * i_height, i_width, i_height)));
+	// }
+	// mymutex.unlock();
+
+	static cv::Mat frame;
+	RoboCompYoloServer::TImage yimage{i_size, i_size, 3, ImgType(i_size*i_size*3)};
+	cap.read(frame); 
+	if(frame.empty())
+		return;
+	cv::resize(frame,frame, cv::Size(i_size,i_size));
+	yimage.image.assign(frame.datastart, frame.dataend);
+	try
+	{ 
+		auto fut = yoloserver_proxy->processImageAsync(yimage);
+		auto objs = fut.get();
+		//auto objs = yoloserver_proxy->processImage(yimage);
+		qDebug() << objs.size();
+ 	} 
+ 	catch(const Ice::Exception &e){std::cout << "shit " << e.what() << std::endl;};				
+
+	cv::imshow("SmartPoliTech", frame);	
 }
-
-
 
 ///////////////////////////////////////////////////////////////////77
 ////////////// Subscribe
@@ -171,4 +207,21 @@ void SpecificWorker::newObjects(const int id, const Objects &objs)
 //  			return;
 //  		}
 //  	}
+
+void SpecificWorker::sm_compute()
+{
+	std::cout<<"Entered state compute"<<std::endl;
+	compute();
+}
+
+void SpecificWorker::sm_initialize()
+{
+	std::cout<<"Entered initial state initialize"<<std::endl;
+}
+
+void SpecificWorker::sm_finalize()
+{
+	std::cout<<"Entered final state finalize"<<std::endl;
+}
+
 

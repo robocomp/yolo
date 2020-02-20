@@ -42,17 +42,23 @@
 #include <cppitertools/product.hpp>
 
 using namespace std::chrono_literals;
+const int i_size = 608;
 
 class SpecificWorker : public GenericWorker
 {
 	Q_OBJECT
 	public:
-		SpecificWorker(const TuplaPrx &tprx);
+		SpecificWorker(TuplePrx tprx);
 		~SpecificWorker();
 		bool setParams(RoboCompCommonBehavior::ParameterList params);
 
 	public slots:
 		void compute();
+		void initialize(int period);
+		//Specification slot methods State Machine
+	void sm_compute();
+	void sm_initialize();
+	void sm_finalize();
 
 	private:
 		std::shared_ptr<InnerModel> innerModel;
@@ -62,10 +68,11 @@ class SpecificWorker : public GenericWorker
 		std::vector<std::tuple<int, std::thread, cv::Mat, int, Objects>> threadList;
 		
 		std::vector<cv::Mat> imgsList;
-		const int i_size = 608;
 		int t_width, t_height, i_width = i_size, i_height = i_size;
 		cv::Mat gframe;
 		mutable std::mutex mymutex;
+
+		
 };
 
 #endif

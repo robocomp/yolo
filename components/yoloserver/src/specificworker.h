@@ -99,12 +99,16 @@ class SpecificWorker : public GenericWorker
 				unsigned int id=0;
 				std::mutex mut,mutR;
 				std::queue<std::tuple<int, T>> myqueue;
+				std::tuple<int, T> buffer;
 				std::vector<std::tuple<int, RoboCompYoloServer::Objects>> myresults;
+				std::tuple<int, RoboCompYoloServer::Objects> result;
+				
 				
 				unsigned int pushImage(T &&img)
 				{
 						std::lock_guard<std::mutex> lock(mut);
 						myqueue.push(std::make_tuple(++id, img));
+						//buffer = std::make_tuple(++id, img);
 						return id;
 				};
 				
@@ -133,7 +137,8 @@ class SpecificWorker : public GenericWorker
 					auto r = std::find_if(std::begin(myresults), std::end(myresults), [id](const auto &r){return std::get<0>(r) == id;});
 					if(r == std::end(myresults))
 						return std::make_tuple(-1, Objects());
-					auto &&res = std::move(*r);	
+					//auto &&res = std::move(*r);	
+					auto res = *r;
 					myresults.erase(r);
 					return res;
 				}
@@ -146,7 +151,7 @@ class SpecificWorker : public GenericWorker
 			//yolo::network *ynet;
 			std::vector<yolo::network*> ynets;
 			const std::size_t YOLO_INSTANCES = 1;
-			
+			bool SHOW_IMAGE = false;
 	};
 
 #endif

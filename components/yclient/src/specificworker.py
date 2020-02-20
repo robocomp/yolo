@@ -64,7 +64,7 @@ class SpecificWorker(GenericWorker):
 		try:
 			objects = self.yoloserver_proxy.processImage(yolo_im)
 			self.drawImage(img, objects)	
-			print(len(objects))
+			#print(len(objects))
 			
 		except  Exception as e:
 			print("error", e)
@@ -95,18 +95,20 @@ class SpecificWorker(GenericWorker):
 			myid = self.yoloserver_proxy.processImage(im)
 			return myid 
 		except  Exception as e:
-			print("error", e)
+			print("error 2", e)
 	
 	def drawImage(self, img, labels):
 		if len(labels)>0:
 			for box in labels:
 				if box.prob > 50:
-					p1 = (int(box.left), int(box.top))
-					p2 = (int(box.right), int(box.bot))
-					pt = (int(box.left), int(box.top) + (p2[1] - p1[1]) / 2)
+					p1 = (box.left, box.top)
+					p2 = (box.right, box.bot)
+					offset = int((p2[1] - p1[1]) / 2)
+					pt = (box.left + offset, box.top + offset) 
 					cv2.rectangle(img, p1, p2, (0, 0, 255), 4)
 					font = cv2.FONT_HERSHEY_SIMPLEX
 					cv2.putText(img, box.name + " " + str(int(box.prob)) + "%", pt, font, 1, (255, 255, 255), 2)
+					
 		cv2.imshow('Image', img)
 		cv2.waitKey(2)
 		

@@ -46,9 +46,8 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 	catch(const std::exception &e) { qFatal("Error reading config params"); }
 
 	for(uint i=0; i<YOLO_INSTANCES; ++i)
-		ynets.emplace_back(init_detector());
+		ynets.push_back(init_detector());
 		
-	//init_detector();
 	
 	cout << "setParams. Network up!" << endl;
 	
@@ -58,7 +57,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 void SpecificWorker::initialize(int period)
 {
 	std::cout << "Initialize worker" << std::endl;
-	this->Period = 50;
+	this->Period = 5;
 	timer.start(Period);
 
 }
@@ -97,14 +96,14 @@ void SpecificWorker::compute()
 	// for(auto &t : threadVector)
 	// 	t.join();
 	
-	fps.print();
+	//fps.print();
 }
 
 yolo::network* SpecificWorker::init_detector() 
 {
 	std::string cocodata = "yolodata/coco.data";
-	std::string yolocfg = "yolodata/cfg/yolov3.cfg";
-	std::string yoloweights = "yolodata/yolov3.weights";
+	std::string yolocfg = "yolodata/cfg/yolov3-tiny.cfg";
+	std::string yoloweights = "yolodata/yolov3-tiny.weights";
 	std::string yolonames = "yolodata/coco.names";
 	
 	names = yolo::get_labels(const_cast<char*>(yolonames.c_str()));
@@ -216,6 +215,7 @@ void SpecificWorker::detectLabels(yolo::network *ynet, const yolo::image &yoloIm
 
 RoboCompYoloServer::Objects SpecificWorker::YoloServer_processImage(TImage img)
 {
+	static FPSCounter fps;
 	//qDebug() << __FUNCTION__ << "Added" << img.image.size() << "w " << img.width << "    h " << img.height;
 	// if( img.image.size() != 608*608*3)
 	// {
@@ -232,8 +232,9 @@ RoboCompYoloServer::Objects SpecificWorker::YoloServer_processImage(TImage img)
 	//bucle de espera
  	std::tuple<int, RoboCompYoloServer::Objects> res;
 	
- 	do{ res = lImgs.popResults(id); std::this_thread::sleep_for(20ms); }
+ 	do{ res = lImgs.popResults(id); std::this_thread::sleep_for(5ms); }
  	while( std::get<0>(res) == -1);
+	fps.print();
 	return std::get<1>(res);
 }
 

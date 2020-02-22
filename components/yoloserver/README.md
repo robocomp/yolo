@@ -5,15 +5,28 @@
 ```
 
 
-sudo apt-get install libopencv-dev nvidia-cuda-dev nvidia-cuda-toolkit
-cd src/yololib
+You need cuda. The version Ubuntu repo works fine:
+
+    sudo apt-get install libopencv-dev nvidia-cuda-dev nvidia-cuda-toolkit
+
+Download darknet from the Yolo(V3) repository
+
+Edit the Makefile to set OPenCV=0
+
+Compile and build the library:
+
 make
-sudo cp libyolo.so /usr/local/lib
-cd ../..
-cmake .
-make
-cp -r src/yololib/data/ .
-wget https://pjreddie.com/media/files/yolo.weights -O src/yololib/yolo.weights
+
+Copy the library and .h files to /usr/local
+
+    sudo cp libyolo.so /usr/local/lib
+
+Copy yolo weights and data to the yolodata directory in the yoloserver compnent.
+
+wget https://pjreddie.com/media/files/yolo.weights -O wherever-you-have-your-component
+
+cp -r src/yololib/data/ wherever-you-have-your-component
+
 
 
 

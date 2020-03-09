@@ -41,7 +41,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 	try
 	{
 		RoboCompCommonBehavior::Parameter par = params.at("ShowImage");
-		SHOW_IMAGE = (par.value == "true");
+		SHOW_IMAGE = (par.value == "true" or par.value == "True");
 	}
 	catch(const std::exception &e) { qFatal("Error reading config params"); }
 
@@ -59,7 +59,7 @@ void SpecificWorker::initialize(int period)
 	std::cout << "Initialize worker" << std::endl;
 	this->Period = 5;
 	timer.start(Period);
-
+	READY_TO_GO = true;
 }
 
 void SpecificWorker::compute()
@@ -71,8 +71,9 @@ void SpecificWorker::compute()
 		if(img.height != 608 or img.width != 608)
 		{
 			cv::Mat image = cv::Mat(img.height, img.width, CV_8UC3, &img.image[0]);
-			cv::resize(image, image, cv::Size(608,608), 0, 0, CV_INTER_LINEAR);
-			detectLabels(ynets[0], createImage(img), index, .5, .5);
+			cv::Mat imgdst = cv::Mat(608, 608, CV_8UC3);
+			cv::resize(image, imgdst, cv::Size(608,608), 0, 0, CV_INTER_LINEAR);
+			detectLabels(ynets[0], createImage(imgdst), index, .5, .5);
 		}
 		else
 			detectLabels(ynets[0], createImage(img), index, .5, .5);
@@ -102,8 +103,8 @@ void SpecificWorker::compute()
 yolo::network* SpecificWorker::init_detector() 
 {
 	std::string cocodata = "yolodata/coco.data";
-	std::string yolocfg = "yolodata/cfg/yolov3-tiny.cfg";
-	std::string yoloweights = "yolodata/yolov3-tiny.weights";
+	std::string yolocfg = "yolodata/cfg/yolov3.cfg";
+	std::string yoloweights = "yolodata/yolov3.weights";
 	std::string yolonames = "yolodata/coco.names";
 	
 	names = yolo::get_labels(const_cast<char*>(yolonames.c_str()));
@@ -121,7 +122,7 @@ yolo::network* SpecificWorker::init_detector()
 //	ynms=.4;
 }
 
-yolo::image SpecificWorker::createImage(const cv::Mat &src)		//reentrant
+yolo::image SpecificWorker::createImage(cv::Mat src)		//reentrant
 {
 	const int &h = src.rows;
 	const int &w = src.cols;
@@ -130,7 +131,7 @@ yolo::image SpecificWorker::createImage(const cv::Mat &src)		//reentrant
 	
 	int i, j, k;
 	image out = make_image(w, h, c);
-	
+			
 	for(i = 0; i < h; ++i){
 		for(k= 0; k < c; ++k){
 			for(j = 0; j < w; ++j){
@@ -227,14 +228,20 @@ RoboCompYoloServer::Objects SpecificWorker::YoloServer_processImage(TImage img)
 	//cv::resize(image, image, cv::Size({608,608}));
 	//qDebug() << image;
 	
-	auto id = lImgs.pushImage(std::move(img));
-
-	//bucle de espera
- 	std::tuple<int, RoboCompYoloServer::Objects> res;
+	if(READY_TO_GO)
+	{
+		auto id = lImgs.pushImage(std::move(img));
+		//bucle de espera
+ 		std::tuple<int, RoboCompYoloServer::Objects> res;
+ 		do{ res = lImgs.popResults(id); std::this_thread::sleep_for(5ms); }
+ 		while( std::get<0>(res) == -1);
+		fps.print();
+		return std::get<1>(res);
+	}
+	else
+	{
+		return Objects();
+	}
 	
- 	do{ res = lImgs.popResults(id); std::this_thread::sleep_for(5ms); }
- 	while( std::get<0>(res) == -1);
-	fps.print();
-	return std::get<1>(res);
 }
 

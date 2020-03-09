@@ -6,6 +6,7 @@ YoloServer.Endpoints=tcp -p 11010
 # This property is used by the clients to connect to IceStorm.
 TopicManager.Proxy=IceStorm/TopicManager:default -p 9999
 
+ShowImage=False
 
 Ice.MessageSizeMax = 2000000
 

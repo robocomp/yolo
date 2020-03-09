@@ -89,7 +89,7 @@ class SpecificWorker : public GenericWorker
 
 		private:
 			yolo::image createImage(const TImage& src);
-			yolo::image createImage(const cv::Mat &src);
+			yolo::image createImage(cv::Mat src);
 			network* init_detector(); 
 			void detectLabels(yolo::network *ynet, const yolo::image &img, int requestid, float thresh, float hier_thresh);
 			
@@ -152,6 +152,8 @@ class SpecificWorker : public GenericWorker
 			std::vector<yolo::network*> ynets;
 			const std::size_t YOLO_INSTANCES = 1;
 			bool SHOW_IMAGE = false;
+
+			bool READY_TO_GO = false;
 	};
 
 #endif

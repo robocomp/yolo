@@ -68,10 +68,11 @@ void SpecificWorker::compute()
 	auto [index, img] = lImgs.popImageIfNotEmpty();
 	if(index > -1) 
 	{
+		cv::Mat imgdst(608,608,CV_8UC3);
 		if(img.height != 608 or img.width != 608)
 		{
 			cv::Mat image = cv::Mat(img.height, img.width, CV_8UC3, &img.image[0]);
-			cv::Mat imgdst = cv::Mat(608, 608, CV_8UC3);
+			//qDebug() << img.height << img.width << img.image.size() << image.depth();
 			cv::resize(image, imgdst, cv::Size(608,608), 0, 0, CV_INTER_LINEAR);
 			detectLabels(ynets[0], createImage(imgdst), index, .5, .5);
 		}
@@ -113,20 +114,13 @@ yolo::network* SpecificWorker::init_detector()
 	cuda_set_device(0);
 	return ynet;
 	
-// 	ytotal = size_network(ynet);
-// 	predictions = (float **)calloc(yframe, sizeof(float*));
-// 	for (int i = 0; i < yframe; ++i)
-// 				predictions[i] = (float *)calloc(ytotal, sizeof(float));
-// 	yavg = (float *)calloc(ytotal, sizeof(float));
-// 	srand(2222222);
-//	ynms=.4;
 }
 
-yolo::image SpecificWorker::createImage(cv::Mat src)		//reentrant
+yolo::image SpecificWorker::createImage(const cv::Mat &src)		//reentrant
 {
 	const int &h = src.rows;
 	const int &w = src.cols;
-	const int &c = src.depth();
+	const int &c = src.channels();
 	int step = w*c;
 	
 	int i, j, k;

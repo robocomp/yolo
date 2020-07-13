@@ -1,0 +1,18 @@
+CommonBehavior.Endpoints=tcp -p 11200
+
+# Proxies for required interfaces
+DSRGetIDProxy = dsrgetid:tcp -h localhost -p 11000
+
+agent_id = 12 # Change id
+agent_name = yoloDSR
+dsr_input_file = "/path/to/json/input/file.json"
+
+ShowImage=True
+
+Ice.MessageSizeMax = 2000000
+#Ice.ThreadPool.Server.Size = 10
+#Ice.ThreadPool.Server.SizeMax = 10
+
+Ice.Warn.Connections=0
+Ice.Trace.Network=0
+Ice.Trace.Protocol=0

@@ -3,9 +3,11 @@ CommonBehavior.Endpoints=tcp -p 11200
 # Proxies for required interfaces
 DSRGetIDProxy = dsrgetid:tcp -h localhost -p 11000
 
-agent_id = 12 # Change id
+agent_id = 16 # Change id
 agent_name = yoloDSR
-dsr_input_file = "/path/to/json/input/file.json"
+read_dsr = false
+#dsr_input_file = "/path/to/json/input/file.json"
+path_to_yolodata = /home/robocomp/software/darknet/yolodata/
 
 ShowImage=True
 

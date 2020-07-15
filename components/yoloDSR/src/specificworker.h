@@ -90,7 +90,7 @@ class SpecificWorker : public GenericWorker
 		};
 		yolo::image createImage(const cv::Mat &src);
 		yolo::image createImage(const std::vector<uint8_t> &src, int width, int height, int depth);
-		network* init_detector(); 
+		network* init_detector(std::string path_to_yolodata_);
 		std::vector<Box> detectLabels(yolo::network *ynet, const yolo::image &img, float thresh, float hier_thresh);
 		char** names;
 		clock_t ytime1;
@@ -99,6 +99,7 @@ class SpecificWorker : public GenericWorker
 		const std::size_t YOLO_INSTANCES = 1;
 		bool SHOW_IMAGE = false;
 		bool READY_TO_GO = false;
+		std::string path_to_yolodata;
 		FPSCounter fps;
 };
 

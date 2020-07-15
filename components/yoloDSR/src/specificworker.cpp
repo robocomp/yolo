@@ -44,9 +44,9 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 	read_dsr = params["read_dsr"].value == "true";
 	dsr_input_file = params["dsr_input_file"].value;
 	SHOW_IMAGE = params["ShowImage"].value == "true" or params["ShowImage"].value == "True";
-
+	path_to_yolodata = params["path_to_yolodata"].value;
 	for(uint i=0; i<YOLO_INSTANCES; ++i)
-		ynets.push_back(init_detector());
+		ynets.push_back(init_detector(path_to_yolodata));
 
 	return true;
 }
@@ -114,12 +114,13 @@ void SpecificWorker::compute()
 	}
 }
 
-yolo::network* SpecificWorker::init_detector() 
+yolo::network* SpecificWorker::init_detector(std::string path_to_yolodata_)
 {
-	std::string cocodata = "yolodata/coco.data";
-	std::string yolocfg = "yolodata/cfg/yolov3.cfg";
-	std::string yoloweights = "yolodata/yolov3.weights";
-	std::string yolonames = "yolodata/coco.names";
+    qDebug() << __FUNCTION__ << "Reading data from " << QString::fromStdString(path_to_yolodata_);
+	std::string cocodata = path_to_yolodata_ +  "coco.data";
+	std::string yolocfg = path_to_yolodata_ + "cfg/yolov3.cfg";
+	std::string yoloweights = path_to_yolodata_ + "yolov3.weights";
+	std::string yolonames = path_to_yolodata_ + "coco.names";
 	
 	names = yolo::get_labels(const_cast<char*>(yolonames.c_str()));
  	yolo::network *ynet = yolo::load_network(const_cast<char*>(yolocfg.c_str()),const_cast<char*>(yoloweights.c_str()), 0);

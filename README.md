@@ -24,14 +24,14 @@ Line 808
 using namespace yolo;
 
 
-#File: yolov3.cfg
+## File: yolov3.cfg
 
 batch=1
 subdivisions=1
 #batch=64
 #subdivisions=16
 
-#File: image.h
+## File: image.h
 Line 64:
 image make_image(int w, int h, int c);
 
@@ -42,20 +42,14 @@ Line 63:
 //    rgbgr_image(im);
       return image();
 
-#File: makefile
+## File: makefile
 GPU=1
 CUDNN=1
 OPENCV=1
 OPENMP=1
 DEBUG=0
 
-#ARCH= -gencode arch=compute_30,code=sm_30 \
-#      -gencode arch=compute_35,code=sm_35 \
-#      -gencode arch=compute_50,code=[sm_50,compute_50] \
-#      -gencode arch=compute_52,code=[sm_52,compute_52]
-#      -gencode arch=compute_20,code=[sm_20,sm_21] \ This one is deprecated?
-
-# This is what I use, uncomment if you know your arch and want to specify
+#This is what I use, uncomment if you know your arch and want to specify
 ARCH= -gencode arch=compute_52,code=compute_52
 
 VPATH=./src/:./examples

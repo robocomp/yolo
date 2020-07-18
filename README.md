@@ -9,7 +9,7 @@ Make sure you have a recent version of opencv and CUDA  (10.2 works fine)
 
 You need to make the following modifications in the code before compiling it:
 
-#File: darknet.h
+### File: darknet.h
 
 Line23
 #ifdef __cplusplus
@@ -24,14 +24,14 @@ Line 808
 using namespace yolo;
 
 
-## File: yolov3.cfg
+### File: yolov3.cfg
 
 batch=1
 subdivisions=1
 #batch=64
 #subdivisions=16
 
-## File: image.h
+### File: image.h
 Line 64:
 image make_image(int w, int h, int c);
 
@@ -42,7 +42,7 @@ Line 63:
 //    rgbgr_image(im);
       return image();
 
-## File: makefile
+### File: makefile
 GPU=1
 CUDNN=1
 OPENCV=1
@@ -67,6 +67,9 @@ OPTS=-O3
 LDFLAGS= -lm -pthread 
 COMMON= -Iinclude/ -Isrc/
 CFLAGS=-Wall -Wno-unused-result -Wno-unknown-pragmas -Wfatal-errors -fPIC -mavx2
+
+
+# Remaining steps
 
 Set the name of your installation path in CMakeListsSpecific.txt for the library libyolo.so and the include directory.
 

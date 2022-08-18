@@ -1,9 +1,7 @@
 # Endpoints for implements interfaces
 YoloServer.Endpoints=tcp -p 16262
 
-display=false
-
-
+display=true
 
 Ice.Warn.Connections=0
 Ice.Trace.Network=0

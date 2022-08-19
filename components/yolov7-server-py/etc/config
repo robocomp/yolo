@@ -2,6 +2,7 @@
 YoloServer.Endpoints=tcp -p 16262
 
 display=false
+detect_all=false
 
 Ice.Warn.Connections=0
 Ice.Trace.Network=0

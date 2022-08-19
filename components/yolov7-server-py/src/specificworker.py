@@ -36,7 +36,6 @@ import dataclasses
 
 sys.path.append('/home/robocomp/software/yolov7')
 from models.experimental import attempt_load
-from utils.datasets import LoadStreams
 from utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier
 from utils.general import scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 from utils.plots import plot_one_box
@@ -98,6 +97,7 @@ class SpecificWorker(GenericWorker):
             self.last_time = time.time()
 
             self.display = False
+            self.detect_all = False
 
             # initialize  estimators
             # pose
@@ -120,37 +120,47 @@ class SpecificWorker(GenericWorker):
 
     def setParams(self, params):
         self.display = params["display"] == "true" or params["display"] == "True"
+        self.detect_all = params["detect_all"] == "true" or params["detect_all"] == "True"
         return True
 
     @QtCore.Slot()
     def compute(self):
-        self.detect()
-        #self.media_pipe()
+        if self.detect_all:
+            self.detect_all()
+        else:
+            self.detect_skeleton()
+
+        # FPS
+        if time.time() - self.last_time > 1:
+            self.last_time = time.time()
+            print("Freq: ", self.cont, "Hz. Waiting for image")
+            self.cont = 0
+        else:
+            self.cont += 1
         return True
 
 #######################################################################################################
-    def media_pipe(self):
-        if self.new_ext_image:
-            t0 = time.time()
-            color = np.frombuffer(self.ext_image.image, dtype=np.uint8)
-            color = color.reshape((self.ext_image.height, self.ext_image.width, 3))
-            color.flags.writeable = False
-            image = cv2.cvtColor(color, cv2.COLOR_BGR2RGB)
-            results = self.mp_objectron.process(image)
+    def detect_skeleton(self):
+        ext_image = self.input_queue.get()
+        t0 = time_synchronized()
+        color = np.frombuffer(ext_image.image, dtype=np.uint8)
+        color = color.reshape((ext_image.height, ext_image.width, 3))
+        image = cv2.cvtColor(color, cv2.COLOR_BGR2RGB)
+        rows, cols, _ = image.shape
+        image.flags.writeable = False
+        t1 = time_synchronized()
+        pose_results = self.mediapipe_human_pose.process(image)
+        t2 = time_synchronized()
 
-            # Draw the box landmarks on the image.
-            image.flags.writeable = True
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            if results.detected_objects:
-                for detected_object in results.detected_objects:
-                    self.mp_drawing.draw_landmarks(
-                        image, detected_object.landmarks_2d, self.mp_objectron.BOX_CONNECTIONS)
-                    self.mp_drawing.draw_axis(image, detected_object.rotation,
-                                         detected_object.translation)
-            cv2.imshow("Objectron", image)
-            cv2.waitKey(1)
-            self.new_ext_image = False
+        if self.display:
+            self.mp_drawing.draw_landmarks(image, pose_results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS)
+            cv2.imshow("Jetson", image)
+            cv2.waitKey(1)  # 1 millisecond
 
+        objects = []
+        self.output_queue.put(objects)    # synchronize with interface
+        t3 = time_synchronized()
+        #print(f'Total {(1E3 * (t3 - t0)):.1f}ms, Inference {(1E3 * (t2 - t1)):.1f}ms')
 
     def init_detect(self, save_img=False):
         source, weights, self.view_img, self.imgsz = self.opt.source, self.opt.weights, self.opt.view_img, self.opt.img_size
@@ -188,7 +198,7 @@ class SpecificWorker(GenericWorker):
         old_img_w = old_img_h = self.imgsz
         old_img_b = 1
 
-    def detect(self):
+    def detect_all(self):
         ext_image = self.input_queue.get()
         t0 = time_synchronized()
         color = np.frombuffer(ext_image.image, dtype=np.uint8)
@@ -279,14 +289,7 @@ class SpecificWorker(GenericWorker):
             cv2.waitKey(1)  # 1 millisecond
 
         self.output_queue.put(objects)    # synchronize with interface
-        #print(f'Done. ({time.time() - t0:.3f}s)')
 
-        if time.time() - self.last_time > 1:
-            self.last_time = time.time()
-            print("Freq: ", self.cont, "Hz. Waiting for image")
-            self.cont = 0
-        else:
-            self.cont += 1
 
     def draw_landmarks(self,
                        image: np.ndarray,

@@ -89,7 +89,7 @@ class SpecificWorker(GenericWorker):
         else:
 
             self.opt = Options()
-            self.init_detect()
+            self.init_yolo_detect()
             print("Init_detect completed")
 
             # Hz
@@ -126,7 +126,7 @@ class SpecificWorker(GenericWorker):
     @QtCore.Slot()
     def compute(self):
         if self.detect_all:
-            self.detect_all()
+            self.detect_objects_and_skeleton()
         else:
             self.detect_skeleton()
 
@@ -140,29 +140,7 @@ class SpecificWorker(GenericWorker):
         return True
 
 #######################################################################################################
-    def detect_skeleton(self):
-        ext_image = self.input_queue.get()
-        t0 = time_synchronized()
-        color = np.frombuffer(ext_image.image, dtype=np.uint8)
-        color = color.reshape((ext_image.height, ext_image.width, 3))
-        image = cv2.cvtColor(color, cv2.COLOR_BGR2RGB)
-        rows, cols, _ = image.shape
-        image.flags.writeable = False
-        t1 = time_synchronized()
-        pose_results = self.mediapipe_human_pose.process(image)
-        t2 = time_synchronized()
-
-        if self.display:
-            self.mp_drawing.draw_landmarks(image, pose_results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS)
-            cv2.imshow("Jetson", image)
-            cv2.waitKey(1)  # 1 millisecond
-
-        objects = []
-        self.output_queue.put(objects)    # synchronize with interface
-        t3 = time_synchronized()
-        #print(f'Total {(1E3 * (t3 - t0)):.1f}ms, Inference {(1E3 * (t2 - t1)):.1f}ms')
-
-    def init_detect(self, save_img=False):
+    def init_yolo_detect(self, save_img=False):
         source, weights, self.view_img, self.imgsz = self.opt.source, self.opt.weights, self.opt.view_img, self.opt.img_size
         webcam = source.isnumeric()
 
@@ -198,7 +176,30 @@ class SpecificWorker(GenericWorker):
         old_img_w = old_img_h = self.imgsz
         old_img_b = 1
 
-    def detect_all(self):
+    def detect_skeleton(self):
+        ext_image = self.input_queue.get()
+        t0 = time_synchronized()
+        color = np.frombuffer(ext_image.image, dtype=np.uint8)
+        color = color.reshape((ext_image.height, ext_image.width, 3))
+        image = cv2.cvtColor(color, cv2.COLOR_BGR2RGB)
+        rows, cols, _ = image.shape
+        image.flags.writeable = False
+        t1 = time_synchronized()
+        pose_results = self.mediapipe_human_pose.process(image)
+        t2 = time_synchronized()
+
+        if self.display:
+            self.mp_drawing.draw_landmarks(image, pose_results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS)
+            cv2.imshow("Jetson", image)
+            cv2.waitKey(1)  # 1 millisecond
+
+        objects = []
+        self.output_queue.put(objects)    # synchronize with interface
+        t3 = time_synchronized()
+        #print(f'Total {(1E3 * (t3 - t0)):.1f}ms, Inference {(1E3 * (t2 - t1)):.1f}ms')
+
+
+    def detect_objects_and_skeleton(self):
         ext_image = self.input_queue.get()
         t0 = time_synchronized()
         color = np.frombuffer(ext_image.image, dtype=np.uint8)

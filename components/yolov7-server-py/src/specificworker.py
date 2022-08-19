@@ -43,6 +43,7 @@ from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
 
 import mediapipe as mp
+import queue
 
 sys.path.append('/opt/robocomp/lib')
 console = Console(highlight=False)
@@ -92,9 +93,6 @@ class SpecificWorker(GenericWorker):
             self.init_detect()
             print("Init_detect completed")
 
-            self.ext_image = ifaces.RoboCompYoloServer.TImage()
-            self.new_ext_image = False
-            self.objects = []
             # Hz
             self.cont = 0
             self.last_time = time.time()
@@ -104,15 +102,17 @@ class SpecificWorker(GenericWorker):
             # initialize  estimators
             # pose
             self.mp_drawing = mp.solutions.drawing_utils
-            self.mp_drawing_styles = mp.solutions.drawing_styles
             self.mp_pose = mp.solutions.pose
             self.mediapipe_human_pose = self.mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
             # face
             self.mp_face = mp.solutions.face_detection
             self.mediapipe_face = self.mp_face.FaceDetection(model_selection=0, min_detection_confidence=0.5)
 
+            # queue
+            self.input_queue = queue.Queue(1)
+            self.output_queue = queue.Queue(1)
+
             self.timer.timeout.connect(self.compute)
-            #self.timer.setSingleShot(True)
             self.timer.start(self.Period)
 
     def __del__(self):
@@ -189,103 +189,97 @@ class SpecificWorker(GenericWorker):
         old_img_b = 1
 
     def detect(self):
-        path = '0'
-        # get image img0
-        if self.new_ext_image:
-            t0 = time.time()
-            color = np.frombuffer(self.ext_image.image, dtype=np.uint8)
-            color = color.reshape((self.ext_image.height, self.ext_image.width, 3))
-            #depth = np.frombuffer(self.ext_image.depth, dtype=np.float32)
-            img, ratio, (dw, dh) = self.letterbox(color)
+        ext_image = self.input_queue.get()
+        t0 = time_synchronized()
+        color = np.frombuffer(ext_image.image, dtype=np.uint8)
+        color = color.reshape((ext_image.height, ext_image.width, 3))
+        #depth = np.frombuffer(self.ext_image.depth, dtype=np.float32)
+        img, ratio, (dw, dh) = self.letterbox(color)
 
-            # Convert img format
-            img = np.stack([img], 0)
-            img = img[:, :, :, ::-1].transpose(0, 3, 1, 2)
-            img = np.ascontiguousarray(img)
-            img = torch.from_numpy(img).to(self.device)
-            img = img.half() if self.half else img.float()  # uint8 to fp16/32
-            img /= 255.0  # 0 - 255 to 0.0 - 1.0
-            if img.ndimension() == 3:
-                img = img.unsqueeze(0)
+        # Convert img format
+        img = np.stack([img], 0)
+        img = img[:, :, :, ::-1].transpose(0, 3, 1, 2)
+        img = np.ascontiguousarray(img)
+        img = torch.from_numpy(img).to(self.device)
+        img = img.half() if self.half else img.float()  # uint8 to fp16/32
+        img /= 255.0  # 0 - 255 to 0.0 - 1.0
+        if img.ndimension() == 3:
+            img = img.unsqueeze(0)
 
-            # Warmup
-            # if self.device.type != 'cpu' and (
-            #         old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
-            #     old_img_b = img.shape[0]
-            #     old_img_h = img.shape[2]
-            #     old_img_w = img.shape[3]
-            #     for i in range(3):
-            #         model(img, augment=self.opt.augment)[0]
+        # Warmup
+        # if self.device.type != 'cpu' and (
+        #         old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
+        #     old_img_b = img.shape[0]
+        #     old_img_h = img.shape[2]
+        #     old_img_w = img.shape[3]
+        #     for i in range(3):
+        #         model(img, augment=self.opt.augment)[0]
 
-            # Inference
-            t1 = time_synchronized()
-            pred = self.model(img, augment=self.opt.augment)[0]
-            t2 = time_synchronized()
+        # Inference
+        t1 = time_synchronized()
+        pred = self.model(img, augment=self.opt.augment)[0]
+        t2 = time_synchronized()
 
-            # Apply NMS
-            pred = non_max_suppression(pred, self.opt.conf_thres, self.opt.iou_thres,  #classes=self.opt.classes,#
-                                       agnostic=self.opt.agnostic_nms)
-            t3 = time_synchronized()
+        # Apply NMS
+        pred = non_max_suppression(pred, self.opt.conf_thres, self.opt.iou_thres,  #classes=self.opt.classes,#
+                                   agnostic=self.opt.agnostic_nms)
+        t3 = time_synchronized()
 
-            # Process detections
-            self.objects = []   # use a double buffer to avoid deleting before read in interface
-            for i, det in enumerate(pred):  # detections per image
-                p, s, im0 = path[i], '%g: ' % i, color.copy()
+        # Process detections
+        objects = []   # use a double buffer to avoid deleting before read in interface
+        if len(pred):
+            det = pred[0]  # detections per image
+            im0 = color.copy()
+            if len(det):
+                # Rescale boxes from img_size to im0 size
+                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
-                #gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-                if len(det):
-                    # Rescale boxes from img_size to im0 size
-                    det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+                # Write results
+                for *xyxy, conf, cls in reversed(det):
+                    if cls == 0:  # if person extract skeleton
+                        body_roi = im0[int(xyxy[1]):int(xyxy[3]), int(xyxy[0]):int(xyxy[2]), :]
+                        roi_rows, roi_cols, _ = body_roi.shape
+                        body_roi.flags.writeable = False
+                        body_roi = cv2.cvtColor(body_roi, cv2.COLOR_BGR2RGB)
+                        pose_results = self.mediapipe_human_pose.process(body_roi)
+                        face_results = self.mediapipe_face.process(body_roi)
 
-                    # Write results
-                    for *xyxy, conf, cls in reversed(det):
-                        if cls == 0:  # if person extract skeleton
-                            body_roi = im0[int(xyxy[1]):int(xyxy[3]), int(xyxy[0]):int(xyxy[2]), :]
-                            roi_rows, roi_cols, _ = body_roi.shape
-                            body_roi.flags.writeable = False
-                            body_roi = cv2.cvtColor(body_roi, cv2.COLOR_BGR2RGB)
-                            pose_results = self.mediapipe_human_pose.process(body_roi)
-                            face_results = self.mediapipe_face.process(body_roi)
+                        mean_dist = 0.0
+                        #for idx, landmark in enumerate(results.pose_landmarks.landmark):
+                        #    landmark_px = self.normalized_to_pixel_coordinates(landmark.x, landmark.y,
+                        #                                                       roi_cols, roi_rows,
+                        #                                                       int(xyxy[0]), int(xyxy[1]))
+                        #mean_dist += depth_image.at(landmar_px.x, landmark_px.y)
+                        #mean_dist /= len()
 
-                            #extract head . If head roi big enough, extract face descriptors.
+                        if self.display:
+                            self.draw_landmarks(im0, body_roi, (int(xyxy[0]), int(xyxy[1])), pose_results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS)
+                            if face_results.detections:
+                                self.draw_detection(im0, body_roi, (int(xyxy[0]), int(xyxy[1])), face_results.detections[0])
 
-                            mean_dist = 0.0
-                            #for idx, landmark in enumerate(results.pose_landmarks.landmark):
-                            #    landmark_px = self.normalized_to_pixel_coordinates(landmark.x, landmark.y,
-                            #                                                       roi_cols, roi_rows,
-                            #                                                       int(xyxy[0]), int(xyxy[1]))
-                            #mean_dist += depth_image.at(landmar_px.x, landmark_px.y)
-                            #mean_dist /= len()
+                    if self.display:  # Add bbox to image
+                        label = f'{self.names[int(cls)]} {conf:.2f}'
+                        plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=3)
 
-                            if self.display:
-                                body_roi.flags.writeable = True
-                                self.draw_landmarks(im0, body_roi, (int(xyxy[0]), int(xyxy[1])), pose_results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS)
-                                if face_results.detections:
-                                    for detection in face_results.detections:
-                                        self.draw_detection(im0, body_roi, (int(xyxy[0]), int(xyxy[1])), detection)
+                    # copy to interface data
+                    box = ifaces.RoboCompYoloServer.Box()
+                    box.name = self.names[int(cls)]
+                    box.prob = float(conf)
+                    box.left = int(xyxy[0])
+                    box.top = int(xyxy[1])
+                    box.right = int(xyxy[2])
+                    box.bot = int(xyxy[3])
+                    objects.append(box)
 
-                        if self.display:  # Add bbox to image
-                            label = f'{self.names[int(cls)]} {conf:.2f}'
-                            plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=3)
-                        box = ifaces.RoboCompYoloServer.Box()
-                        box.name = self.names[int(cls)]
-                        box.prob = float(conf)
-                        box.left = int(xyxy[0])
-                        box.top = int(xyxy[1])
-                        box.right = int(xyxy[2])
-                        box.bot = int(xyxy[3])
-                        self.objects.append(box)
+        # Print time (inference + NMS)
+        #print(f'Total {(1E3 * (t2 - t0)):.1f}ms, Inference {(1E3 * (t2 - t1)):.1f}ms, NMS {(1E3 * (t3 - t2)):.1f}ms')
 
-                # Print time (inference + NMS)
-                # print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}s) NMS')
+        if self.display:
+            cv2.imshow("Jetson", im0)
+            cv2.waitKey(1)  # 1 millisecond
 
-                # Stream results
-                if self.display:
-                    cv2.imshow(str(p), im0)
-                    cv2.waitKey(1)  # 1 millisecond
-
-            self.new_ext_image = False
-            #print(f'Done. ({time.time() - t0:.3f}s)')
+        self.output_queue.put(objects)    # synchronize with interface
+        #print(f'Done. ({time.time() - t0:.3f}s)')
 
         if time.time() - self.last_time > 1:
             self.last_time = time.time()
@@ -302,6 +296,30 @@ class SpecificWorker(GenericWorker):
                        connections: Optional[List[Tuple[int, int]]] = None,
                        landmark_drawing_spec: Union[DrawingSpec, Mapping[int, DrawingSpec]] = DrawingSpec(color=RED_COLOR),
                        connection_drawing_spec: Union[DrawingSpec, Mapping[Tuple[int, int], DrawingSpec]] = DrawingSpec()):
+
+        """Draws the landmarks and the connections on the image.
+
+          Args:
+            image: A three channel BGR image represented as numpy ndarray.
+            landmark_list: A normalized landmark list proto message to be annotated on
+              the image.
+            connections: A list of landmark index tuples that specifies how landmarks to
+              be connected in the drawing.
+            landmark_drawing_spec: Either a DrawingSpec object or a mapping from
+              hand landmarks to the DrawingSpecs that specifies the landmarks' drawing
+              settings such as color, line thickness, and circle radius.
+              If this argument is explicitly set to None, no landmarks will be drawn.
+            connection_drawing_spec: Either a DrawingSpec object or a mapping from
+              hand connections to the DrawingSpecs that specifies the
+              connections' drawing settings such as color and line thickness.
+              If this argument is explicitly set to None, no landmark connections will
+              be drawn.
+
+          Raises:
+            ValueError: If one of the followings:
+              a) If the input image is not three channel BGR.
+              b) If any connetions contain invalid landmark index.
+          """
 
         if not landmark_list:
             return
@@ -482,16 +500,9 @@ class SpecificWorker(GenericWorker):
     #
     def YoloServer_processImage(self, img):
 
-        ret = ifaces.RoboCompYoloServer.Objects()
-        if not self.new_ext_image:
-            self.ext_image = img
-            # wait for detection
-            while not self.ext_image:  # tags cannot be computed in this thread
-                pass
-            ret = self.objects
-            self.new_ext_image = True
+        self.input_queue.put(img)
+        return self.output_queue.get()
 
-        return ret
     # ===================================================================
     # ===================================================================
 

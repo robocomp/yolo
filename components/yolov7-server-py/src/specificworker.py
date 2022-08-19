@@ -106,7 +106,7 @@ class SpecificWorker(GenericWorker):
             self.mediapipe_human_pose = self.mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
             # face
             self.mp_face = mp.solutions.face_detection
-            self.mediapipe_face = self.mp_face.FaceDetection(model_selection=0, min_detection_confidence=0.5)
+            self.mediapipe_face = self.mp_face.FaceDetection(min_detection_confidence=0.5)
 
             # queue
             self.input_queue = queue.Queue(1)

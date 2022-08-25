@@ -98,11 +98,11 @@ class DrawingSpec:
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
-        self.Period = 50
+        self.Period = 0
         if startup_check:
             self.startup_check()
         else:
-            self.global_frame = None
+            self.frame = None
             self.opt = Options()
             #self.init_yolo_detect()
             self.init_yolo_trt()
@@ -123,12 +123,12 @@ class SpecificWorker(GenericWorker):
             self.mediapipe_human_pose = self.mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
             # face
-            self.mp_face = mp.solutions.face_detection
-            self.mediapipe_face = self.mp_face.FaceDetection(min_detection_confidence=0.5)
+            #self.mp_face = mp.solutions.face_detection
+            #self.mediapipe_face = self.mp_face.FaceDetection(min_detection_confidence=0.5)
 
             # queue
-            self.input_queue = queue.Queue(1)
-            self.output_queue = queue.Queue(1)
+            self.input_queue = queue.Queue(2)
+            self.output_queue = queue.Queue(2)
 
             self.timer.timeout.connect(self.compute)
             #self.timer.setSingleShot(True)
@@ -151,16 +151,6 @@ class SpecificWorker(GenericWorker):
         #     self.detect_skeleton()
         self.detect_yolo()
 
-        # queue1_2 = queue.Queue(1)
-        # queue2_3 = queue.Queue(1)
-        # queue3_4 = queue.Queue(1)
-        # thread1 = Thread(target=self.preprocess_image(), args=(self.input_queue, queue1_2), name='Preprocess')
-        # thread1.start()
-        # thread2 = Thread(target=self.inference(), args=(queue1_2, queue2_3), name='Preprocess')
-        # thread2.start()
-        # thread3 = Thread(target=self.extract_objects(), args=(queue2_3, self.output_queue), name='Preprocess')
-        # thread3.start()
-
         # FPS
         if time.time() - self.last_time > 1:
             self.last_time = time.time()
@@ -171,39 +161,6 @@ class SpecificWorker(GenericWorker):
         return True
 
 #######################################################################################################
-    def preprocess_image(self, queue_in, queue_out):
-        image = queue_in.get()
-        frame = np.frombuffer(image.image, dtype=np.uint8)
-        frame = frame.reshape((image.height, image.width, 3))
-        self.global_frame = frame.copy()
-        blob, ratio = preproc(frame, self.pred.imgsz, self.pred.mean, self.pred.std)
-        queue_out.put([blob, ratio])
-
-    def inference(self, queue_in, queue_out):
-        blob, ratio = queue_in.get()
-        data = self.pred.infer(blob)
-        queue_out.put([data, ratio])
-
-    def extract_objects(self, queue_in, queue_out):
-        data, ratio = queue_in.get()
-        print(len(data))
-        num, final_boxes, final_scores, final_cls_inds, _, _, _ = data
-        final_boxes = np.reshape(final_boxes / ratio, (-1, 4))
-        dets = np.concatenate([final_boxes[:num[0]], np.array(final_scores)[:num[0]].reshape(-1, 1),
-                               np.array(final_cls_inds)[:num[0]].reshape(-1, 1)], axis=-1)
-        # else:
-        #     predictions = np.reshape(data, (1, -1, int(5 + self.n_classes)))[0]
-        #     dets = self.postprocess(predictions, ratio)
-
-        if dets is not None:
-            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-            frame = vis(self.global_frame, final_boxes, final_scores, final_cls_inds, conf=0.5, class_names=self.pred.class_names)
-
-        cv2.imshow('frame', self.global_frame)
-        cv2.waitKey(1)
-        objects = []
-        queue_out.put(objects)
-
     def init_yolo_trt(self):
         self.pred = Predictor(engine_path='yolov7-tiny.trt')
         self.pred.get_fps()
@@ -237,38 +194,55 @@ class SpecificWorker(GenericWorker):
 
     def detect_yolo(self):
         t0 = time.time()
-        ext_image = self.input_queue.get()
-
-        frame = np.frombuffer(ext_image.image, dtype=np.uint8)
-        frame = frame.reshape((ext_image.height, ext_image.width, 3))
-        t1= time.time()
+        rgb_image  = self.input_queue.get()
+        frame = np.frombuffer(rgb_image.image, dtype=np.uint8)
+        frame = frame.reshape((rgb_image.height, rgb_image.width, 3))
         blob, ratio = preproc(frame, self.pred.imgsz, self.pred.mean, self.pred.std)
+
+        t1= time.time()
         data = self.pred.infer(blob)
         t2 = time.time()
-        #frame = cv2.putText(frame, "lag %d " % (1000.0*(time.time()-t1)), (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-        #if end2end:
         num, final_boxes, final_scores, final_cls_inds = data
-        self.fps = (self.fps + (1. / (time.time() - t1))) / 2
-        frame = cv2.putText(frame, "FPS:%d " % self.fps, (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                            (0, 0, 255), 2)
-
-        num, final_boxes, final_scores, final_cls_inds, _, _, _ = data
-
         final_boxes = np.reshape(final_boxes / ratio, (-1, 4))
         dets = np.concatenate([final_boxes[:num[0]], np.array(final_scores)[:num[0]].reshape(-1, 1),
                                np.array(final_cls_inds)[:num[0]].reshape(-1, 1)], axis=-1)
 
+        objects = []
         if dets is not None:
             final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-            img = frame
-            img = vis(img, final_boxes, final_scores, final_cls_inds,
-                        conf=0.5, class_names=self.pred.class_names)
+            for i in range(len(final_boxes)):
+                box = final_boxes[i]
+                #if score < conf:
+                #    continue
+                
+                # copy to interface 
+                ibox = ifaces.RoboCompYoloServer.Box()
+                ibox.name = self.pred.class_names[int(final_cls_inds[i])]
+                ibox.prob = final_scores[i]
+                ibox.left = int(box[0])
+                ibox.top = int(box[1])
+                ibox.right = int(box[2])
+                ibox.bot = int(box[3])
+                objects.append(ibox)
 
-        cv2.imshow('frame', img)
-        cv2.waitKey(1)
-        t3=time.time()
-        print(1000.0*(t3-t0), 1000.0*(t1-t0), 1000.0*(t2-t1), 1000.0*(t3-t2))
-        objects = []
+                # pose
+                if final_cls_inds[i] == 0:  #person
+                    t3 = time.time()
+                    lframe = frame.copy()
+                    body_roi = lframe[int(box[1]):int(box[3]), int(box[0]):int(box[2]), :]
+                    #roi_rows, roi_cols, _ = body_roi.shape
+                    #body_roi.flags.writeable = False
+                    #pose_results = self.mediapipe_human_pose.process(body_roi)
+                    t4 = time.time()    
+
+            #img = frame
+            #img = vis(img, final_boxes, final_scores, final_cls_inds,
+            #            conf=0.5, class_names=self.pred.class_names)
+
+        #cv2.imshow('frame', img)
+        #cv2.waitKey(1)
+        t5 = time.time()
+        print(1000.0*(t5-t0), 1000.0*(t1-t0), 1000.0*(t2-t1), 1000.0*(t4-t3))
         self.output_queue.put(objects)
 
     def detect_skeleton(self):
@@ -606,44 +580,6 @@ class SpecificWorker(GenericWorker):
 
         return x_px, y_px
 
-    def letterbox(self, img: np.ndarray, new_shape=(640, 640),
-                  color=(114, 114, 114),
-                  auto: bool = True,
-                  scaleFill: bool = False,
-                  scaleup: bool = True,
-                  stride: int = 32):
-
-        # Resize and pad image while meeting stride-multiple constraints
-        shape = img.shape[:2]  # current shape [height, width]
-        if isinstance(new_shape, int):
-            new_shape = (new_shape, new_shape)
-
-       # Scale ratio (new / old)
-        r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
-        if not scaleup:  # only scale down, do not scale up (for better test mAP)
-            r = min(r, 1.0)
-
-        # Compute padding
-        ratio = r, r  # width, height ratios
-        new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
-        dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
-        if auto:  # minimum rectangle
-            dw, dh = np.mod(dw, stride), np.mod(dh, stride)  # wh padding
-        elif scaleFill:  # stretch
-            dw, dh = 0.0, 0.0
-            new_unpad = (new_shape[1], new_shape[0])
-            ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
-
-        dw /= 2  # divide padding into 2 sides
-        dh /= 2
-
-        if shape[::-1] != new_unpad:  # resize
-            img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
-        top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
-        left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-        img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
-        return img, ratio, (dw, dh)
-
     #################################################################################33
     def startup_check(self):
         print(f"Testing RoboCompYoloServer.TImage from ifaces.RoboCompYoloServer")
@@ -658,6 +594,10 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of processImage method from YoloServer interface
     #
     def YoloServer_processImage(self, img):
+        #frame = np.frombuffer(img.image, dtype=np.uint8)
+        #frame = frame.reshape((img.height, img.width, 3))
+        #blob, ratio = preproc(self.frame, self.pred.imgsz, self.pred.mean, self.pred.std)
+
         self.input_queue.put(img)
         return self.output_queue.get()
 

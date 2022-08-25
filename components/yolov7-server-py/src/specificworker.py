@@ -33,6 +33,7 @@ import torch.backends.cudnn as cudnn
 from numpy import random
 from typing import NamedTuple, List, Mapping, Optional, Tuple, Union
 import dataclasses
+from threading import Thread
 
 # YOLOV7
 #sys.path.append('/home/robocomp/software/yolov7')
@@ -101,7 +102,7 @@ class SpecificWorker(GenericWorker):
         if startup_check:
             self.startup_check()
         else:
-
+            self.global_frame = None
             self.opt = Options()
             #self.init_yolo_detect()
             self.init_yolo_trt()
@@ -120,6 +121,7 @@ class SpecificWorker(GenericWorker):
             self.mp_drawing = mp.solutions.drawing_utils
             self.mp_pose = mp.solutions.pose
             self.mediapipe_human_pose = self.mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
             # face
             self.mp_face = mp.solutions.face_detection
             self.mediapipe_face = self.mp_face.FaceDetection(min_detection_confidence=0.5)
@@ -129,6 +131,7 @@ class SpecificWorker(GenericWorker):
             self.output_queue = queue.Queue(1)
 
             self.timer.timeout.connect(self.compute)
+            #self.timer.setSingleShot(True)
             self.timer.start(self.Period)
 
     def __del__(self):
@@ -148,6 +151,16 @@ class SpecificWorker(GenericWorker):
         #     self.detect_skeleton()
         self.detect_yolo()
 
+        # queue1_2 = queue.Queue(1)
+        # queue2_3 = queue.Queue(1)
+        # queue3_4 = queue.Queue(1)
+        # thread1 = Thread(target=self.preprocess_image(), args=(self.input_queue, queue1_2), name='Preprocess')
+        # thread1.start()
+        # thread2 = Thread(target=self.inference(), args=(queue1_2, queue2_3), name='Preprocess')
+        # thread2.start()
+        # thread3 = Thread(target=self.extract_objects(), args=(queue2_3, self.output_queue), name='Preprocess')
+        # thread3.start()
+
         # FPS
         if time.time() - self.last_time > 1:
             self.last_time = time.time()
@@ -158,6 +171,39 @@ class SpecificWorker(GenericWorker):
         return True
 
 #######################################################################################################
+    def preprocess_image(self, queue_in, queue_out):
+        image = queue_in.get()
+        frame = np.frombuffer(image.image, dtype=np.uint8)
+        frame = frame.reshape((image.height, image.width, 3))
+        self.global_frame = frame.copy()
+        blob, ratio = preproc(frame, self.pred.imgsz, self.pred.mean, self.pred.std)
+        queue_out.put([blob, ratio])
+
+    def inference(self, queue_in, queue_out):
+        blob, ratio = queue_in.get()
+        data = self.pred.infer(blob)
+        queue_out.put([data, ratio])
+
+    def extract_objects(self, queue_in, queue_out):
+        data, ratio = queue_in.get()
+        print(len(data))
+        num, final_boxes, final_scores, final_cls_inds, _, _, _ = data
+        final_boxes = np.reshape(final_boxes / ratio, (-1, 4))
+        dets = np.concatenate([final_boxes[:num[0]], np.array(final_scores)[:num[0]].reshape(-1, 1),
+                               np.array(final_cls_inds)[:num[0]].reshape(-1, 1)], axis=-1)
+        # else:
+        #     predictions = np.reshape(data, (1, -1, int(5 + self.n_classes)))[0]
+        #     dets = self.postprocess(predictions, ratio)
+
+        if dets is not None:
+            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+            frame = vis(self.global_frame, final_boxes, final_scores, final_cls_inds, conf=0.5, class_names=self.pred.class_names)
+
+        cv2.imshow('frame', self.global_frame)
+        cv2.waitKey(1)
+        objects = []
+        queue_out.put(objects)
+
     def init_yolo_trt(self):
         self.pred = Predictor(engine_path='yolov7-tiny.trt')
         self.pred.get_fps()
@@ -190,21 +236,23 @@ class SpecificWorker(GenericWorker):
             self.model(torch.zeros(1, 3, self.imgsz, self.imgsz).to(self.device).type_as(next(self.model.parameters())))
 
     def detect_yolo(self):
-        #pred.detect_video(video, conf=0.1, end2end=args.end2end)
         ext_image = self.input_queue.get()
+
         frame = np.frombuffer(ext_image.image, dtype=np.uint8)
         frame = frame.reshape((ext_image.height, ext_image.width, 3))
+
         blob, ratio = preproc(frame, self.pred.imgsz, self.pred.mean, self.pred.std)
         t1 = time.time()
         data = self.pred.infer(blob)
         self.fps = (self.fps + (1. / (time.time() - t1))) / 2
         frame = cv2.putText(frame, "FPS:%d " % self.fps, (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1,
                             (0, 0, 255), 2)
-        #if end2end:
-        num, final_boxes, final_scores, final_cls_inds = data
+
+        num, final_boxes, final_scores, final_cls_inds, _, _, _ = data
+
         final_boxes = np.reshape(final_boxes / ratio, (-1, 4))
         dets = np.concatenate([final_boxes[:num[0]], np.array(final_scores)[:num[0]].reshape(-1, 1),
-                              np.array(final_cls_inds)[:num[0]].reshape(-1, 1)], axis=-1)
+                               np.array(final_cls_inds)[:num[0]].reshape(-1, 1)], axis=-1)
         # else:
         #     predictions = np.reshape(data, (1, -1, int(5 + self.n_classes)))[0]
         #     dets = self.postprocess(predictions, ratio)
@@ -212,7 +260,7 @@ class SpecificWorker(GenericWorker):
         if dets is not None:
             final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
             frame = vis(frame, final_boxes, final_scores, final_cls_inds,
-                        conf=0.5, class_names=self.det.class_names)
+                        conf=0.5, class_names=self.pred.class_names)
         cv2.imshow('frame', frame)
         cv2.waitKey(1)
         objects = []

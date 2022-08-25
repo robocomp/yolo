@@ -65,7 +65,7 @@ GREEN_COLOR = (0, 128, 0)
 BLUE_COLOR = (255, 0, 0)
 
 class Predictor(BaseEngine):
-    def __init__(self, engine_path , imgsz=(640, 480)):
+    def __init__(self, engine_path , imgsz=(640, 640)):
         super(Predictor, self).__init__(engine_path)
         self.imgsz = imgsz      # your model infer image size
         self.n_classes = 80     # your model classes
@@ -190,31 +190,35 @@ class SpecificWorker(GenericWorker):
             self.model(torch.zeros(1, 3, self.imgsz, self.imgsz).to(self.device).type_as(next(self.model.parameters())))
 
     def detect_yolo(self):
-        #pred.detect_video(video, conf=0.1, end2end=args.end2end)
+        t0 = time.time()
         ext_image = self.input_queue.get()
         frame = np.frombuffer(ext_image.image, dtype=np.uint8)
         frame = frame.reshape((ext_image.height, ext_image.width, 3))
+        t1= time.time()
         blob, ratio = preproc(frame, self.pred.imgsz, self.pred.mean, self.pred.std)
-        t1 = time.time()
+        #t1 = time.time()
         data = self.pred.infer(blob)
-        self.fps = (self.fps + (1. / (time.time() - t1))) / 2
-        frame = cv2.putText(frame, "FPS:%d " % self.fps, (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                            (0, 0, 255), 2)
+        t2 = time.time()
+        #frame = cv2.putText(frame, "lag %d " % (1000.0*(time.time()-t1)), (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         #if end2end:
         num, final_boxes, final_scores, final_cls_inds = data
         final_boxes = np.reshape(final_boxes / ratio, (-1, 4))
         dets = np.concatenate([final_boxes[:num[0]], np.array(final_scores)[:num[0]].reshape(-1, 1),
                               np.array(final_cls_inds)[:num[0]].reshape(-1, 1)], axis=-1)
         # else:
-        #     predictions = np.reshape(data, (1, -1, int(5 + self.n_classes)))[0]
-        #     dets = self.postprocess(predictions, ratio)
+        #predictions = np.reshape(data, (1, -1, int(5 + self.pred.n_classes)))[0]
+        #dets = self.postprocess(predictions, ratio)
 
         if dets is not None:
             final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-            frame = vis(frame, final_boxes, final_scores, final_cls_inds,
-                        conf=0.5, class_names=self.det.class_names)
-        cv2.imshow('frame', frame)
+            img = frame
+            img = vis(img, final_boxes, final_scores, final_cls_inds,
+                        conf=0.5, class_names=self.pred.class_names)
+
+        cv2.imshow('frame', img)
         cv2.waitKey(1)
+        t3=time.time()
+        print(1000.0*(t3-t0), 1000.0*(t1-t0), 1000.0*(t2-t1), 1000.0*(t3-t2))
         objects = []
         self.output_queue.put(objects)
 
@@ -605,7 +609,6 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of processImage method from YoloServer interface
     #
     def YoloServer_processImage(self, img):
-        print("New image")
         self.input_queue.put(img)
         return self.output_queue.get()
 

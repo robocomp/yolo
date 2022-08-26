@@ -28,8 +28,16 @@ import numpy as np
 import time
 import math
 import cv2
-sys.path.append('/home/robocomp/software/ONNX-YOLOv7-Object-Detection')
-from YOLOv7 import YOLOv7
+
+#sys.path.append('/home/robocomp/software/ONNX-YOLOv7-Object-Detection')
+#from YOLOv7 import YOLOv7
+
+sys.path.append('/home/robocomp/software/TensorRT-For-YOLO-Series')
+from utils.utils import preproc, vis
+from utils.utils import BaseEngine
+
+from mediapipe.framework.formats import landmark_pb2, detection_pb2, location_data_pb2
+import mediapipe as mp
 
 sys.path.append('/opt/robocomp/lib')
 console = Console(highlight=False)
@@ -37,12 +45,18 @@ console = Console(highlight=False)
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
-        self.Period = 50
+        self.Period = 5
         if startup_check:
             self.startup_check()
         else:
+            # trt
+            self.yolo_object_predictor = BaseEngine(engine_path='yolov7-tiny.trt')
+            #self.yolo_skeleton_predictor = BaseEngine(engine_path='densenet121_256x256.trt')
 
-            self.yolov7_detector = YOLOv7('yolov7-w6-pose.onnx', conf_thres=0.5, iou_thres=0.5)
+            # pose mediapipe
+            self.mp_drawing = mp.solutions.drawing_utils
+            self.mp_pose = mp.solutions.pose
+            self.mediapipe_human_pose = self.mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
             # Hz
             self.cont = 0
@@ -56,27 +70,74 @@ class SpecificWorker(GenericWorker):
         """Destructor"""
 
     def setParams(self, params):
-
         return True
-
 
     @QtCore.Slot()
     def compute(self):
+        t0 = time.time()
+        rgb = self.get_rgb("camera_top")
 
-        try:
-            rgb = self.camerargbdsimple_proxy.getImage("camera_top")
-            frame = np.frombuffer(rgb.image, dtype=np.uint8)
-            frame = frame.reshape((rgb.height, rgb.width, 3))
-            boxes, scores, class_ids = self.yolov7_detector(frame)
+        t1 = time.time()
+        dets = self.yolov7_objects(rgb)
+        t2 = time.time()
 
-            combined_img = self.yolov7_detector.draw_detections(frame)
-            cv2.imshow("Detected Objects", combined_img)
-            cv2.waitKey(1)
+        objects = self.post_process(dets)
+        print(len(objects))
 
-        except:
-            print("Error communicating with CameraRGBDSimple")
+        #self.show_data(dets)
+        t3 = time.time()
+
+        print(1000.0*(t3-t1), 1000.0*(t1-t0), 1000.0*(t2-t1), 1000.0*(t3-t2))
 
         # FPS
+        self.show_fps()
+
+        return True
+
+###########################################################################################3
+
+    def get_rgb(self, name):
+        try:
+            rgb = self.camerargbdsimple_proxy.getImage(name)
+            frame = np.frombuffer(rgb.image, dtype=np.uint8)
+            frame = frame.reshape((rgb.height, rgb.width, 3))
+        except:
+            print("Error communicating with CameraRGBDSimple")
+            return
+        return frame
+
+    def yolov7_objects(self, frame):
+        blob, ratio = preproc(frame, (640, 640), None, None)
+        data = self.yolo_object_predictor.infer(blob)
+
+        num, final_boxes, final_scores, final_cls_inds = data
+        final_boxes = np.reshape(final_boxes / ratio, (-1, 4))
+        dets = np.concatenate([final_boxes[:num[0]], np.array(final_scores)[:num[0]].reshape(-1, 1),
+                               np.array(final_cls_inds)[:num[0]].reshape(-1, 1)], axis=-1)
+
+        return dets
+
+    def post_process(self, dets):
+        objects = []
+        if dets is not None:
+            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+            for i in range(len(final_boxes)):
+                box = final_boxes[i]
+                # if score < conf:
+                #    continue
+
+                # copy to interface
+                ibox = ifaces.RoboCompYoloObjects.Box()
+                ibox.name = self.pred.class_names[int(final_cls_inds[i])]
+                ibox.prob = final_scores[i]
+                ibox.left = int(box[0])
+                ibox.top = int(box[1])
+                ibox.right = int(box[2])
+                ibox.bot = int(box[3])
+                objects.append(ibox)
+        return objects
+
+    def show_fps(self):
         if time.time() - self.last_time > 1:
             self.last_time = time.time()
             print("Freq: ", self.cont, "Hz. Waiting for image")
@@ -84,8 +145,13 @@ class SpecificWorker(GenericWorker):
         else:
             self.cont += 1
 
-        return True
+    def show_data(self, dets):
+        if dets is not None:
+            frame = vis(frame, final_boxes, final_scores, final_cls_inds, conf=0.5, class_names=self.yolo_predictor.class_names)
+        cv2.imshow("Detected Objects", frame)
+        cv2.waitKey(1)
 
+    ############################################################################################
     def startup_check(self):
         print(f"Testing RoboCompCameraRGBDSimple.TImage from ifaces.RoboCompCameraRGBDSimple")
         test = ifaces.RoboCompCameraRGBDSimple.TImage()
@@ -104,8 +170,6 @@ class SpecificWorker(GenericWorker):
         print(f"Testing RoboCompHumanCameraBody.PeopleData from ifaces.RoboCompHumanCameraBody")
         test = ifaces.RoboCompHumanCameraBody.PeopleData()
         QTimer.singleShot(200, QApplication.instance().quit)
-
-
 
     # =============== Methods for Component Implements ==================
     # ===================================================================

@@ -38,6 +38,8 @@ from threading import Thread
 # YOLOV7
 #sys.path.append('/home/robocomp/software/yolov7')
 sys.path.append('/home/robocomp/software/TensorRT-For-YOLO-Series')
+sys.path.append('/home/robocomp/software/ONNX-YOLOv7-Object-Detection')
+from YOLOv7 import YOLOv7
 
 #from models.experimental import attempt_load
 #from utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier
@@ -98,7 +100,7 @@ class DrawingSpec:
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
-        self.Period = 0
+        self.Period = 1
         if startup_check:
             self.startup_check()
         else:
@@ -106,7 +108,8 @@ class SpecificWorker(GenericWorker):
             self.opt = Options()
             #self.init_yolo_detect()
             self.init_yolo_trt()
-            print("Init_detect completed")
+            #print("Init_detect completed")
+            self.yolov7_detector = YOLOv7('yolov7-w6-pose.onnx', conf_thres=0.5, iou_thres=0.5)
 
             # Hz
             self.cont = 0
@@ -127,8 +130,8 @@ class SpecificWorker(GenericWorker):
             #self.mediapipe_face = self.mp_face.FaceDetection(min_detection_confidence=0.5)
 
             # queue
-            self.input_queue = queue.Queue(2)
-            self.output_queue = queue.Queue(2)
+            self.input_queue = queue.Queue(1)
+            self.output_queue = queue.Queue(1)
 
             self.timer.timeout.connect(self.compute)
             #self.timer.setSingleShot(True)
@@ -149,7 +152,8 @@ class SpecificWorker(GenericWorker):
         #     self.detect_objects_and_skeleton()
         # else:
         #     self.detect_skeleton()
-        self.detect_yolo()
+        # self.detect_yolo()
+        self.detect_yolo_onnxruntime()
 
         # FPS
         if time.time() - self.last_time > 1:
@@ -191,13 +195,26 @@ class SpecificWorker(GenericWorker):
         # Run inference
         if self.device.type != 'cpu':
             self.model(torch.zeros(1, 3, self.imgsz, self.imgsz).to(self.device).type_as(next(self.model.parameters())))
+    
+    def detect_yolo_onnxruntime(self):
+         frame  = self.input_queue.get()
+         boxes, scores, class_ids = self.yolov7_detector(frame)
+
+         #combined_img = self.yolov7_detector.draw_detections(frame)
+         #cv2.imshow("Detected Objects", combined_img)
+         #cv2.waitKey(1)
+
+         objects = []
+         self.output_queue.put(objects)
+
 
     def detect_yolo(self):
         t0 = time.time()
-        rgb_image  = self.input_queue.get()
-        frame = np.frombuffer(rgb_image.image, dtype=np.uint8)
-        frame = frame.reshape((rgb_image.height, rgb_image.width, 3))
-        blob, ratio = preproc(frame, self.pred.imgsz, self.pred.mean, self.pred.std)
+        blob, ratio  = self.input_queue.get()
+        t15 = time.time()
+        #frame = np.frombuffer(rgb_image.image, dtype=np.uint8)
+        #frame = frame.reshape((rgb_image.height, rgb_image.width, 3))
+        #blob, ratio = preproc(frame, self.pred.imgsz, self.pred.mean, self.pred.std)
 
         t1= time.time()
         data = self.pred.infer(blob)
@@ -228,8 +245,8 @@ class SpecificWorker(GenericWorker):
                 # pose
                 if final_cls_inds[i] == 0:  #person
                     t3 = time.time()
-                    lframe = frame.copy()
-                    body_roi = lframe[int(box[1]):int(box[3]), int(box[0]):int(box[2]), :]
+                    #lframe = frame.copy()
+                    #body_roi = lframe[int(box[1]):int(box[3]), int(box[0]):int(box[2]), :]
                     #roi_rows, roi_cols, _ = body_roi.shape
                     #body_roi.flags.writeable = False
                     #pose_results = self.mediapipe_human_pose.process(body_roi)
@@ -242,7 +259,7 @@ class SpecificWorker(GenericWorker):
         #cv2.imshow('frame', img)
         #cv2.waitKey(1)
         t5 = time.time()
-        print(1000.0*(t5-t0), 1000.0*(t1-t0), 1000.0*(t2-t1), 1000.0*(t4-t3))
+        #print(1000.0*(t5-t0), 1000.0*(t15-t0), 1000.0*(t1-t0), 1000.0*(t2-t1), 1000.0*(t4-t3))
         self.output_queue.put(objects)
 
     def detect_skeleton(self):
@@ -594,11 +611,11 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of processImage method from YoloServer interface
     #
     def YoloServer_processImage(self, img):
-        #frame = np.frombuffer(img.image, dtype=np.uint8)
-        #frame = frame.reshape((img.height, img.width, 3))
-        #blob, ratio = preproc(self.frame, self.pred.imgsz, self.pred.mean, self.pred.std)
-
-        self.input_queue.put(img)
+        frame = np.frombuffer(img.image, dtype=np.uint8)
+        frame = frame.reshape((img.height, img.width, 3))
+        #blob, ratio = preproc(frame, self.pred.imgsz, self.pred.mean, self.pred.std)
+        #self.input_queue.put([blob,ratio])
+        self.input_queue.put(frame)
         return self.output_queue.get()
 
     # ===================================================================

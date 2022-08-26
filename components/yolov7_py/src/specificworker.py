@@ -128,7 +128,7 @@ class SpecificWorker(GenericWorker):
 
                 # copy to interface
                 ibox = ifaces.RoboCompYoloObjects.Box()
-                ibox.name = self.pred.class_names[int(final_cls_inds[i])]
+                ibox.name = self.yolo_object_predictor.class_names[int(final_cls_inds[i])]
                 ibox.prob = final_scores[i]
                 ibox.left = int(box[0])
                 ibox.top = int(box[1])

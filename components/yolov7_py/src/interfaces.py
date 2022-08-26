@@ -7,8 +7,8 @@ console = Console()
 
 Ice.loadSlice("-I ./src/ --all ./src/CameraRGBDSimple.ice")
 import RoboCompCameraRGBDSimple
-Ice.loadSlice("-I ./src/ --all ./src/HumanCameraBody.ice")
-import RoboCompHumanCameraBody
+Ice.loadSlice("-I ./src/ --all ./src/YoloObjects.ice")
+import RoboCompYoloObjects
 
 class ImgType(list):
     def __init__(self, iterable=list()):
@@ -46,134 +46,26 @@ class DepthType(list):
         super(DepthType, self).insert(index, item)
 
 setattr(RoboCompCameraRGBDSimple, "DepthType", DepthType)
-class DescriptorFloat(list):
+class Objects(list):
     def __init__(self, iterable=list()):
-        super(DescriptorFloat, self).__init__(iterable)
+        super(Objects, self).__init__(iterable)
 
     def append(self, item):
-        assert isinstance(item, float)
-        super(DescriptorFloat, self).append(item)
+        assert isinstance(item, RoboCompYoloObjects.Box)
+        super(Objects, self).append(item)
 
     def extend(self, iterable):
         for item in iterable:
-            assert isinstance(item, float)
-        super(DescriptorFloat, self).extend(iterable)
+            assert isinstance(item, RoboCompYoloObjects.Box)
+        super(Objects, self).extend(iterable)
 
     def insert(self, index, item):
-        assert isinstance(item, float)
-        super(DescriptorFloat, self).insert(index, item)
+        assert isinstance(item, RoboCompYoloObjects.Box)
+        super(Objects, self).insert(index, item)
 
-setattr(RoboCompHumanCameraBody, "DescriptorFloat", DescriptorFloat)
-class DescriptorByte(list):
-    def __init__(self, iterable=list()):
-        super(DescriptorByte, self).__init__(iterable)
+setattr(RoboCompYoloObjects, "Objects", Objects)
 
-    def append(self, item):
-        assert isinstance(item, byte)
-        super(DescriptorByte, self).append(item)
-
-    def extend(self, iterable):
-        for item in iterable:
-            assert isinstance(item, byte)
-        super(DescriptorByte, self).extend(iterable)
-
-    def insert(self, index, item):
-        assert isinstance(item, byte)
-        super(DescriptorByte, self).insert(index, item)
-
-setattr(RoboCompHumanCameraBody, "DescriptorByte", DescriptorByte)
-class DescByteList(list):
-    def __init__(self, iterable=list()):
-        super(DescByteList, self).__init__(iterable)
-
-    def append(self, item):
-        assert isinstance(item, RoboCompHumanCameraBody.DescriptorByte)
-        super(DescByteList, self).append(item)
-
-    def extend(self, iterable):
-        for item in iterable:
-            assert isinstance(item, RoboCompHumanCameraBody.DescriptorByte)
-        super(DescByteList, self).extend(iterable)
-
-    def insert(self, index, item):
-        assert isinstance(item, RoboCompHumanCameraBody.DescriptorByte)
-        super(DescByteList, self).insert(index, item)
-
-setattr(RoboCompHumanCameraBody, "DescByteList", DescByteList)
-class DescFloatList(list):
-    def __init__(self, iterable=list()):
-        super(DescFloatList, self).__init__(iterable)
-
-    def append(self, item):
-        assert isinstance(item, RoboCompHumanCameraBody.DescriptorFloat)
-        super(DescFloatList, self).append(item)
-
-    def extend(self, iterable):
-        for item in iterable:
-            assert isinstance(item, RoboCompHumanCameraBody.DescriptorFloat)
-        super(DescFloatList, self).extend(iterable)
-
-    def insert(self, index, item):
-        assert isinstance(item, RoboCompHumanCameraBody.DescriptorFloat)
-        super(DescFloatList, self).insert(index, item)
-
-setattr(RoboCompHumanCameraBody, "DescFloatList", DescFloatList)
-class ImgType(list):
-    def __init__(self, iterable=list()):
-        super(ImgType, self).__init__(iterable)
-
-    def append(self, item):
-        assert isinstance(item, byte)
-        super(ImgType, self).append(item)
-
-    def extend(self, iterable):
-        for item in iterable:
-            assert isinstance(item, byte)
-        super(ImgType, self).extend(iterable)
-
-    def insert(self, index, item):
-        assert isinstance(item, byte)
-        super(ImgType, self).insert(index, item)
-
-setattr(RoboCompHumanCameraBody, "ImgType", ImgType)
-class GroundTruth(list):
-    def __init__(self, iterable=list()):
-        super(GroundTruth, self).__init__(iterable)
-
-    def append(self, item):
-        assert isinstance(item, RoboCompHumanCameraBody.TGroundTruth)
-        super(GroundTruth, self).append(item)
-
-    def extend(self, iterable):
-        for item in iterable:
-            assert isinstance(item, RoboCompHumanCameraBody.TGroundTruth)
-        super(GroundTruth, self).extend(iterable)
-
-    def insert(self, index, item):
-        assert isinstance(item, RoboCompHumanCameraBody.TGroundTruth)
-        super(GroundTruth, self).insert(index, item)
-
-setattr(RoboCompHumanCameraBody, "GroundTruth", GroundTruth)
-class People(list):
-    def __init__(self, iterable=list()):
-        super(People, self).__init__(iterable)
-
-    def append(self, item):
-        assert isinstance(item, RoboCompHumanCameraBody.Person)
-        super(People, self).append(item)
-
-    def extend(self, iterable):
-        for item in iterable:
-            assert isinstance(item, RoboCompHumanCameraBody.Person)
-        super(People, self).extend(iterable)
-
-    def insert(self, index, item):
-        assert isinstance(item, RoboCompHumanCameraBody.Person)
-        super(People, self).insert(index, item)
-
-setattr(RoboCompHumanCameraBody, "People", People)
-
-import humancamerabodyI
+import yoloobjectsI
 
 
 
@@ -270,7 +162,7 @@ class Subscribes:
 class Implements:
     def __init__(self, ice_connector, default_handler):
         self.ice_connector = ice_connector
-        self.humancamerabody = self.create_adapter("HumanCameraBody", humancamerabodyI.HumanCameraBodyI(default_handler))
+        self.yoloobjects = self.create_adapter("YoloObjects", yoloobjectsI.YoloObjectsI(default_handler))
 
     def create_adapter(self, property_name, interface_handler):
         adapter = self.ice_connector.createObjectAdapter(property_name)

@@ -1,5 +1,5 @@
 # Endpoints for implements interfaces
-HumanCameraBody.Endpoints=tcp -p 13582
+YoloObjects.Endpoints=tcp -p 10054
 
 # Proxies for required interfaces
 CameraRGBDSimpleProxy = camerargbdsimple:tcp -h robex.local -p 10095

@@ -64,6 +64,24 @@ class Objects(list):
         super(Objects, self).insert(index, item)
 
 setattr(RoboCompYoloObjects, "Objects", Objects)
+class People(list):
+    def __init__(self, iterable=list()):
+        super(People, self).__init__(iterable)
+
+    def append(self, item):
+        assert isinstance(item, RoboCompYoloObjects.Person)
+        super(People, self).append(item)
+
+    def extend(self, iterable):
+        for item in iterable:
+            assert isinstance(item, RoboCompYoloObjects.Person)
+        super(People, self).extend(iterable)
+
+    def insert(self, index, item):
+        assert isinstance(item, RoboCompYoloObjects.Person)
+        super(People, self).insert(index, item)
+
+setattr(RoboCompYoloObjects, "People", People)
 
 import yoloobjectsI
 

@@ -13,7 +13,8 @@ module RoboCompYoloObjects
 {
 	struct Box
 	{
-		string name;
+		int id;
+		int type;
 		int left;
 		int top;
 		int right;
@@ -21,10 +22,42 @@ module RoboCompYoloObjects
 		float prob;
 	};
 	sequence <Box> Objects;
+	dictionary <string, int> ObjectsNames;
+	struct KeyPoint
+	{
+		float x;
+		float y;
+		float z;
+		int i;
+		int j;
+		float score;
+	};
+	dictionary <int, KeyPoint> TJoints;
+	struct Person
+	{
+		int id;
+		int box;
+		TJoints joints;
+	};
+	sequence <Person> People;
+	dictionary <string, int> JointNames;
+	dictionary <int, int> Connections;
+	struct JointData
+	{
+		JointNames joints;
+		Connections links;
+	};
+	struct Data
+	{
+		Objects objs;
+		People persons;
+	};
 	interface YoloObjects
 	{
 		RoboCompCameraRGBDSimple::TImage getImage ();
-		Objects getYoloObjects ();
+		JointNames getYoloJointNames ();
+		ObjectNames getYoloObjectNames ();
+		Data getYoloObjects ();
 	};
 };
 

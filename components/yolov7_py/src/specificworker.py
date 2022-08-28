@@ -18,6 +18,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
 #
+import queue
 
 from PySide2.QtCore import QTimer
 from PySide2.QtWidgets import QApplication
@@ -28,6 +29,10 @@ import numpy as np
 import time
 import math
 import cv2
+from threading import Thread
+import queue
+from typing import NamedTuple, List, Mapping, Optional, Tuple, Union
+
 
 #sys.path.append('/home/robocomp/software/ONNX-YOLOv7-Object-Detection')
 #from YOLOv7 import YOLOv7
@@ -41,6 +46,9 @@ import mediapipe as mp
 
 sys.path.append('/opt/robocomp/lib')
 console = Console(highlight=False)
+
+_PRESENCE_THRESHOLD = 0.5
+_VISIBILITY_THRESHOLD = 0.5
 
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
@@ -63,6 +71,11 @@ class SpecificWorker(GenericWorker):
             self.last_time = time.time()
             self.fps = 0
 
+            # camera read thread
+            self.read_queue = queue.Queue()
+            self.read_thread = Thread(target=self.get_rgb_thread, args=["camera_top"], name="read_queue")
+            self.read_thread.start()
+
             self.timer.timeout.connect(self.compute)
             self.timer.start(self.Period)
 
@@ -74,20 +87,19 @@ class SpecificWorker(GenericWorker):
 
     @QtCore.Slot()
     def compute(self):
-        t0 = time.time()
-        rgb = self.get_rgb("camera_top")
+        rgb = self.read_queue.get()
 
         t1 = time.time()
         dets = self.yolov7_objects(rgb)
         t2 = time.time()
 
-        objects = self.post_process(dets)
-        print(len(objects))
+        objects = self.post_process(dets, rgb)
+        #print(len(objects))
 
-        #self.show_data(dets)
+        #self.show_data(dets, rgb)
         t3 = time.time()
 
-        print(1000.0*(t3-t1), 1000.0*(t1-t0), 1000.0*(t2-t1), 1000.0*(t3-t2))
+        #print(1000.0*(t3-t1), 1000.0*(t2-t1), 1000.0*(t3-t2))
 
         # FPS
         self.show_fps()
@@ -106,6 +118,17 @@ class SpecificWorker(GenericWorker):
             return
         return frame
 
+    def get_rgb_thread(self, camera_name: str):
+        while True:
+            try:
+                rgb = self.camerargbdsimple_proxy.getImage(camera_name)
+                frame = np.frombuffer(rgb.image, dtype=np.uint8)
+                frame = frame.reshape((rgb.height, rgb.width, 3))
+            except:
+                print("Error communicating with CameraRGBDSimple")
+                return
+            self.read_queue.put(frame)
+
     def yolov7_objects(self, frame):
         blob, ratio = preproc(frame, (640, 640), None, None)
         data = self.yolo_object_predictor.infer(blob)
@@ -117,8 +140,10 @@ class SpecificWorker(GenericWorker):
 
         return dets
 
-    def post_process(self, dets):
-        objects = []
+    def post_process(self, dets, frame):
+        data = ifaces.RoboCompYoloObjects.TData()
+        data.objects = []
+        data.people = []
         if dets is not None:
             final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
             for i in range(len(final_boxes)):
@@ -127,15 +152,43 @@ class SpecificWorker(GenericWorker):
                 #    continue
 
                 # copy to interface
-                ibox = ifaces.RoboCompYoloObjects.Box()
-                ibox.name = self.yolo_object_predictor.class_names[int(final_cls_inds[i])]
+                ibox = ifaces.RoboCompYoloObjects.TBox()
+                ibox.type = int(final_cls_inds[i])
+                ibox.id = i
+                #self.yolo_object_predictor.class_names[int(final_cls_inds[i])]
                 ibox.prob = final_scores[i]
                 ibox.left = int(box[0])
                 ibox.top = int(box[1])
                 ibox.right = int(box[2])
                 ibox.bot = int(box[3])
-                objects.append(ibox)
-        return objects
+                data.objects.append(ibox)
+
+                # pose
+                if final_cls_inds[i] == 0:  # person
+                    body_roi = frame[int(box[1]):int(box[3]), int(box[0]):int(box[2]), :].copy()
+                    body_roi.flags.writeable = False
+                    pose_results = self.mediapipe_human_pose.process(body_roi)
+                    roi_rows, roi_cols, _ = body_roi.shape
+                    person = ifaces.RoboCompYoloObjects.TPerson()
+                    person.joints = {}
+                    if pose_results.pose_landmarks:
+                        for idx, landmark in enumerate(pose_results.pose_landmarks.landmark):
+                            if ((landmark.HasField('visibility') and
+                                 landmark.visibility < _VISIBILITY_THRESHOLD) or
+                                    (landmark.HasField('presence') and
+                                     landmark.presence < _PRESENCE_THRESHOLD)):
+                                continue
+                            landmark_px = self.normalized_to_pixel_coordinates(landmark.x, landmark.y,
+                                                                           roi_cols, roi_rows,
+                                                                           int(box[0]), int(box[1]))
+                            if landmark_px:
+                                kp = ifaces.RoboCompYoloObjects.TKeyPoint()
+                                kp.i = landmark_px[0]
+                                kp.j = landmark_px[1]
+                                person.joints[idx] = kp
+                        data.people.append(person)
+
+        return data
 
     def show_fps(self):
         if time.time() - self.last_time > 1:
@@ -145,12 +198,37 @@ class SpecificWorker(GenericWorker):
         else:
             self.cont += 1
 
-    def show_data(self, dets):
+    def show_data(self, dets, frame):
         if dets is not None:
-            frame = vis(frame, final_boxes, final_scores, final_cls_inds, conf=0.5, class_names=self.yolo_predictor.class_names)
+            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+            frame = vis(frame, final_boxes, final_scores, final_cls_inds, conf=0.5, class_names=self.yolo_object_predictor.class_names)
         cv2.imshow("Detected Objects", frame)
         cv2.waitKey(1)
 
+    def normalized_to_pixel_coordinates(self,
+                                        normalized_x: float,
+                                        normalized_y: float,
+                                        image_width: int,
+                                        image_height: int,
+                                        roi_offset_x: int,
+                                        roi_offset_y: int) -> Union[None, Tuple[int, int]]:
+        """Converts normalized value pair to pixel coordinates."""
+
+        # Checks if the float value is between 0 and 1.
+        def is_valid_normalized_value(value: float) -> bool:
+            return (value > 0 or math.isclose(0, value)) and (value < 1 or math.isclose(1, value))
+
+        if not (is_valid_normalized_value(normalized_x) and is_valid_normalized_value(normalized_y)):
+            # TODO: Draw coordinates even if it's outside of the image bounds.
+            return None
+        x_px = min(math.floor(normalized_x * image_width), image_width - 1)
+        y_px = min(math.floor(normalized_y * image_height), image_height - 1)
+
+        # add original image offser
+        x_px += roi_offset_x
+        y_px += roi_offset_y
+
+        return x_px, y_px
     ############################################################################################
     def startup_check(self):
         print(f"Testing RoboCompCameraRGBDSimple.TImage from ifaces.RoboCompCameraRGBDSimple")

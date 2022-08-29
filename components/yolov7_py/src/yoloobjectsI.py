@@ -41,8 +41,8 @@ class YoloObjectsI(YoloObjects):
     def getImage(self, c):
         return self.worker.YoloObjects_getImage()
 
-    def getYoloJointNames(self, c):
-        return self.worker.YoloObjects_getYoloJointNames()
+    def getYoloJointData(self, c):
+        return self.worker.YoloObjects_getYoloJointData()
 
     def getYoloObjectNames(self, c):
         return self.worker.YoloObjects_getYoloObjectNames()

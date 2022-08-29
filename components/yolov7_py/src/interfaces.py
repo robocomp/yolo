@@ -46,42 +46,78 @@ class DepthType(list):
         super(DepthType, self).insert(index, item)
 
 setattr(RoboCompCameraRGBDSimple, "DepthType", DepthType)
-class Objects(list):
+class TObjects(list):
     def __init__(self, iterable=list()):
-        super(Objects, self).__init__(iterable)
+        super(TObjects, self).__init__(iterable)
 
     def append(self, item):
-        assert isinstance(item, RoboCompYoloObjects.Box)
-        super(Objects, self).append(item)
+        assert isinstance(item, RoboCompYoloObjects.TBox)
+        super(TObjects, self).append(item)
 
     def extend(self, iterable):
         for item in iterable:
-            assert isinstance(item, RoboCompYoloObjects.Box)
-        super(Objects, self).extend(iterable)
+            assert isinstance(item, RoboCompYoloObjects.TBox)
+        super(TObjects, self).extend(iterable)
 
     def insert(self, index, item):
-        assert isinstance(item, RoboCompYoloObjects.Box)
-        super(Objects, self).insert(index, item)
+        assert isinstance(item, RoboCompYoloObjects.TBox)
+        super(TObjects, self).insert(index, item)
 
-setattr(RoboCompYoloObjects, "Objects", Objects)
-class People(list):
+setattr(RoboCompYoloObjects, "TObjects", TObjects)
+class TObjectNames(list):
     def __init__(self, iterable=list()):
-        super(People, self).__init__(iterable)
+        super(TObjectNames, self).__init__(iterable)
 
     def append(self, item):
-        assert isinstance(item, RoboCompYoloObjects.Person)
-        super(People, self).append(item)
+        assert isinstance(item, str)
+        super(TObjectNames, self).append(item)
 
     def extend(self, iterable):
         for item in iterable:
-            assert isinstance(item, RoboCompYoloObjects.Person)
-        super(People, self).extend(iterable)
+            assert isinstance(item, str)
+        super(TObjectNames, self).extend(iterable)
 
     def insert(self, index, item):
-        assert isinstance(item, RoboCompYoloObjects.Person)
-        super(People, self).insert(index, item)
+        assert isinstance(item, str)
+        super(TObjectNames, self).insert(index, item)
 
-setattr(RoboCompYoloObjects, "People", People)
+setattr(RoboCompYoloObjects, "TObjectNames", TObjectNames)
+class TPeople(list):
+    def __init__(self, iterable=list()):
+        super(TPeople, self).__init__(iterable)
+
+    def append(self, item):
+        assert isinstance(item, RoboCompYoloObjects.TPerson)
+        super(TPeople, self).append(item)
+
+    def extend(self, iterable):
+        for item in iterable:
+            assert isinstance(item, RoboCompYoloObjects.TPerson)
+        super(TPeople, self).extend(iterable)
+
+    def insert(self, index, item):
+        assert isinstance(item, RoboCompYoloObjects.TPerson)
+        super(TPeople, self).insert(index, item)
+
+setattr(RoboCompYoloObjects, "TPeople", TPeople)
+class TConnections(list):
+    def __init__(self, iterable=list()):
+        super(TConnections, self).__init__(iterable)
+
+    def append(self, item):
+        assert isinstance(item, RoboCompYoloObjects.TConnection)
+        super(TConnections, self).append(item)
+
+    def extend(self, iterable):
+        for item in iterable:
+            assert isinstance(item, RoboCompYoloObjects.TConnection)
+        super(TConnections, self).extend(iterable)
+
+    def insert(self, index, item):
+        assert isinstance(item, RoboCompYoloObjects.TConnection)
+        super(TConnections, self).insert(index, item)
+
+setattr(RoboCompYoloObjects, "TConnections", TConnections)
 
 import yoloobjectsI
 

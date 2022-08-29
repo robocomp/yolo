@@ -11,7 +11,7 @@
 #include <CameraRGBDSimple.ice>
 module RoboCompYoloObjects
 {
-	struct Box
+	struct TBox
 	{
 		int id;
 		int type;
@@ -21,9 +21,9 @@ module RoboCompYoloObjects
 		int bot;
 		float prob;
 	};
-	sequence <Box> Objects;
-	dictionary <string, int> ObjectsNames;
-	struct KeyPoint
+	sequence <TBox> TObjects;
+	dictionary <string, int> TObjectNames;
+	struct TKeyPoint
 	{
 		float x;
 		float y;
@@ -32,32 +32,32 @@ module RoboCompYoloObjects
 		int j;
 		float score;
 	};
-	dictionary <int, KeyPoint> TJoints;
-	struct Person
+	dictionary <int, TKeyPoint> TJoints;
+	struct TPerson
 	{
 		int id;
 		int box;
 		TJoints joints;
 	};
-	sequence <Person> People;
-	dictionary <string, int> JointNames;
-	dictionary <int, int> Connections;
-	struct JointData
+	sequence <TPerson> TPeople;
+	dictionary <string, int> TJointNames;
+	dictionary <int, int> TConnections;
+	struct TJointData
 	{
-		JointNames joints;
-		Connections links;
+		TJointNames jointNames;
+		TConnections connections;
 	};
-	struct Data
+	struct TData
 	{
-		Objects objs;
-		People persons;
+		TObjects objects;
+		TPeople people;
 	};
 	interface YoloObjects
 	{
 		RoboCompCameraRGBDSimple::TImage getImage ();
-		JointNames getYoloJointNames ();
-		ObjectNames getYoloObjectNames ();
-		Data getYoloObjects ();
+		TJointData getYoloJointData ();
+		TObjectNames getYoloObjectNames ();
+		TData getYoloObjects ();
 	};
 };
 

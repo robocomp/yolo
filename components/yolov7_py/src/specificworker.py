@@ -128,7 +128,9 @@ class SpecificWorker(GenericWorker):
 
                 # copy to interface
                 ibox = ifaces.RoboCompYoloObjects.Box()
-                ibox.name = self.yolo_object_predictor.class_names[int(final_cls_inds[i])]
+                ibox.type = int(final_cls_inds[i])
+                ibox.id = i
+                #self.yolo_object_predictor.class_names[int(final_cls_inds[i])]
                 ibox.prob = final_scores[i]
                 ibox.left = int(box[0])
                 ibox.top = int(box[1])
@@ -173,19 +175,6 @@ class SpecificWorker(GenericWorker):
 
     # =============== Methods for Component Implements ==================
     # ===================================================================
-
-    #
-    # IMPLEMENTATION of newPeopleData method from HumanCameraBody interface
-    #
-    def HumanCameraBody_newPeopleData(self):
-        ret = ifaces.RoboCompHumanCameraBody.PeopleData()
-        #
-        # write your CODE here
-        #
-        return ret
-    # ===================================================================
-    # ===================================================================
-
 
     ######################
     # From the RoboCompCameraRGBDSimple you can call this methods:

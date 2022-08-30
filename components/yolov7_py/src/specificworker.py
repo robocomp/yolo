@@ -18,8 +18,6 @@
 #    You should have received a copy of the GNU General Public License
 #    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
 #
-import queue
-
 from PySide2.QtCore import QTimer
 from PySide2.QtWidgets import QApplication
 from rich.console import Console
@@ -31,44 +29,32 @@ import math
 import cv2
 from threading import Thread
 import queue
+import json
 from typing import NamedTuple, List, Mapping, Optional, Tuple, Union
-
-
-#sys.path.append('/home/robocomp/software/ONNX-YOLOv7-Object-Detection')
-#from YOLOv7 import YOLOv7
 
 sys.path.append('/home/robocomp/software/TensorRT-For-YOLO-Series')
 from utils.utils import preproc, vis
 from utils.utils import BaseEngine
 
-from mediapipe.framework.formats import landmark_pb2, detection_pb2, location_data_pb2
-import mediapipe as mp
+# from mediapipe.framework.formats import landmark_pb2, detection_pb2, location_data_pb2
+# import mediapipe as mp
 
 sys.path.append('/opt/robocomp/lib')
 console = Console(highlight=False)
 
-# MEDIAPIPE DATA   https://google.github.io/mediapipe/solutions/pose.html
-_PRESENCE_THRESHOLD = 0.5
-_VISIBILITY_THRESHOLD = 0.5
-_JOINT_NAMES = ['nose', 'left_eye_inner', 'left_eye', 'left_eye_outer', 'right_eye_inner', 'right_eye',
-                'right_eye_outer', 'left_ear', 'right_ear', 'mouth_left', 'mouth_right', 'left_shoulder',
-                'right_shoulder', 'left_elbow', 'right_elbow', 'left_wrist', 'right_wrist', 'left_pinky', 'right_pinky',
-                'left_index', 'right_index', 'left_thumb', 'right_thumb', 'left_hip', 'right_hip', 'left_knee',
-                'right_knee', 'left_ankle', 'right_ankle', 'left_heel', 'right_heel', 'left_foot_index',
-                'right_foot_index']
-_CONNECTIONS = [[1, 2], [2, 3], [3, 7], [0, 1], [0, 4], [4, 5], [5, 6], [6, 8], [10, 9], [12, 14], [14, 16],
-                [16, 22], [16, 20], [16, 18], [18, 20], [11, 13], [13, 15], [15, 21], [15, 19], [15, 17], [19, 17],
-                [12, 24], [24, 26], [26, 28], [28, 32], [32, 30], [28, 30], [11, 23], [24, 23], [23, 25], [25, 27],
-                [27, 29], [29, 31], [27, 31]]
 _OBJECT_NAMES = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
-                'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep',
-                'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase',
-                'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard',
-                'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-                'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-                'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard',
-                'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
-                'teddy bear', 'hair drier', 'toothbrush']
+                 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse',
+                 'sheep',
+                 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase',
+                 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard',
+                 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
+                 'banana', 'apple',
+                 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
+                 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard',
+                 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase',
+                 'scissors',
+                 'teddy bear', 'hair drier', 'toothbrush']
+
 
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
@@ -79,12 +65,6 @@ class SpecificWorker(GenericWorker):
         else:
             # trt
             self.yolo_object_predictor = BaseEngine(engine_path='yolov7-tiny.trt')
-            #self.yolo_skeleton_predictor = BaseEngine(engine_path='densenet121_256x256.trt')
-
-            # pose mediapipe
-            self.mp_drawing = mp.solutions.drawing_utils
-            self.mp_pose = mp.solutions.pose
-            self.mediapipe_human_pose = self.mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
             # Hz
             self.cont = 0
@@ -100,6 +80,7 @@ class SpecificWorker(GenericWorker):
             self.timer.start(self.Period)
 
             # result data
+            self.write_queue = queue.Queue(1)
             self.data = ifaces.RoboCompYoloObjects.TData()
 
     def __del__(self):
@@ -111,26 +92,30 @@ class SpecificWorker(GenericWorker):
     @QtCore.Slot()
     def compute(self):
         rgb = self.read_queue.get()
-        #rgb = self.get_rgb("camera_top")
 
-        #t1 = time.time()
+        # t1 = time.time()
         dets = self.yolov7_objects(rgb)
-        #t2 = time.time()
+        # t2 = time.time()
 
         objects = self.post_process(dets, rgb)
-        #print(len(objects))
+        # print(len(objects))
 
-        #self.show_data(dets, rgb)
-        #t3 = time.time()
+        self.show_data(dets, rgb)
+        # print(len(objects.objects), len(objects.people))
+        # t3 = time.time()
 
-        #print(1000.0*(t3-t1), 1000.0*(t2-t1), 1000.0*(t3-t2))
+        try:
+            self.write_queue.put_nowait(objects)
+        except:
+            pass
+        # print(1000.0*(t3-t1), 1000.0*(t2-t1), 1000.0*(t3-t2))
 
         # FPS
         self.show_fps()
 
         return True
 
-###########################################################################################3
+    ###########################################################################################3
 
     def get_rgb(self, name):
         try:
@@ -153,6 +138,7 @@ class SpecificWorker(GenericWorker):
                 print("Error communicating with CameraRGBDSimple")
                 return
 
+    ###############################################################
     def yolov7_objects(self, frame):
         blob, ratio = preproc(frame, (640, 640), None, None)
         data = self.yolo_object_predictor.infer(blob)
@@ -182,32 +168,6 @@ class SpecificWorker(GenericWorker):
                 ibox.right = int(box[2])
                 ibox.bot = int(box[3])
                 self.data.objects.append(ibox)
-
-                # pose
-                if final_cls_inds[i] == 0:  # person
-                    body_roi = frame[int(box[1]):int(box[3]), int(box[0]):int(box[2]), :].copy()
-                    body_roi.flags.writeable = False
-                    pose_results = self.mediapipe_human_pose.process(body_roi)
-                    roi_rows, roi_cols, _ = body_roi.shape
-                    person = ifaces.RoboCompYoloObjects.TPerson()
-                    person.joints = {}
-                    if pose_results.pose_landmarks:
-                        for idx, landmark in enumerate(pose_results.pose_landmarks.landmark):
-                            if ((landmark.HasField('visibility') and
-                                 landmark.visibility < _VISIBILITY_THRESHOLD) or
-                                    (landmark.HasField('presence') and
-                                     landmark.presence < _PRESENCE_THRESHOLD)):
-                                continue
-                            landmark_px = self.normalized_to_pixel_coordinates(landmark.x, landmark.y,
-                                                                           roi_cols, roi_rows,
-                                                                           int(box[0]), int(box[1]))
-                            if landmark_px:
-                                kp = ifaces.RoboCompYoloObjects.TKeyPoint()
-                                kp.i = landmark_px[0]
-                                kp.j = landmark_px[1]
-                                person.joints[idx] = kp
-                        self.data.people.append(person)
-
         return self.data
 
     def show_fps(self):
@@ -221,34 +181,12 @@ class SpecificWorker(GenericWorker):
     def show_data(self, dets, frame):
         if dets is not None:
             final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-            frame = vis(frame, final_boxes, final_scores, final_cls_inds, conf=0.5, class_names=self.yolo_object_predictor.class_names)
+            frame = vis(frame, final_boxes, final_scores, final_cls_inds, conf=0.5,
+                        class_names=self.yolo_object_predictor.class_names)
+        #
         cv2.imshow("Detected Objects", frame)
         cv2.waitKey(1)
 
-    def normalized_to_pixel_coordinates(self,
-                                        normalized_x: float,
-                                        normalized_y: float,
-                                        image_width: int,
-                                        image_height: int,
-                                        roi_offset_x: int,
-                                        roi_offset_y: int) -> Union[None, Tuple[int, int]]:
-        """Converts normalized value pair to pixel coordinates."""
-
-        # Checks if the float value is between 0 and 1.
-        def is_valid_normalized_value(value: float) -> bool:
-            return (value > 0 or math.isclose(0, value)) and (value < 1 or math.isclose(1, value))
-
-        if not (is_valid_normalized_value(normalized_x) and is_valid_normalized_value(normalized_y)):
-            # TODO: Draw coordinates even if it's outside of the image bounds.
-            return None
-        x_px = min(math.floor(normalized_x * image_width), image_width - 1)
-        y_px = min(math.floor(normalized_y * image_height), image_height - 1)
-
-        # add original image offser
-        x_px += roi_offset_x
-        y_px += roi_offset_y
-
-        return x_px, y_px
     ############################################################################################
     def startup_check(self):
         print(f"Testing RoboCompCameraRGBDSimple.TImage from ifaces.RoboCompCameraRGBDSimple")
@@ -274,7 +212,7 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of getImage method from YoloObjects interface
     #
     def YoloObjects_getImage(self):
-        #ret = RoboCompYoloObjects.RoboCompCameraRGBDSimple::TImage()
+        # ret = RoboCompYoloObjects.RoboCompCameraRGBDSimple::TImage()
         #
         # write your CODE here
         #
@@ -299,14 +237,14 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of getYoloObjectNames method from YoloObjects interf
     #
     def YoloObjects_getYoloObjectNames(self):
-        
+
         return self.yolo_object_predictor.class_names
 
     # IMPLEMENTATION of getYoloObjects method from YoloObjects interface
     #
     def YoloObjects_getYoloObjects(self):
-        return self.data
-       
+        return self.write_queue.get()
+
     ######################
     # From the RoboCompCameraRGBDSimple you can call this methods:
     # self.camerargbdsimple_proxy.getAll(...)
@@ -327,4 +265,21 @@ class SpecificWorker(GenericWorker):
     # RoboCompHumanCameraBody.Person
     # RoboCompHumanCameraBody.PeopleData
 
-
+# MEDIAPIPE DATA   https://google.github.io/mediapipe/solutions/pose.html
+# WHITE_COLOR = (224, 224, 224)
+# BLACK_COLOR = (0, 0, 0)
+# RED_COLOR = (0, 0, 255)
+# GREEN_COLOR = (0, 128, 0)
+# BLUE_COLOR = (255, 0, 0)
+# _PRESENCE_THRESHOLD = 0.5
+# _VISIBILITY_THRESHOLD = 0.5
+# _JOINT_NAMES = ['nose', 'left_eye_inner', 'left_eye', 'left_eye_outer', 'right_eye_inner', 'right_eye',
+#                 'right_eye_outer', 'left_ear', 'right_ear', 'mouth_left', 'mouth_right', 'left_shoulder',
+#                 'right_shoulder', 'left_elbow', 'right_elbow', 'left_wrist', 'right_wrist', 'left_pinky', 'right_pinky',
+#                 'left_index', 'right_index', 'left_thumb', 'right_thumb', 'left_hip', 'right_hip', 'left_knee',
+#                 'right_knee', 'left_ankle', 'right_ankle', 'left_heel', 'right_heel', 'left_foot_index',
+#                 'right_foot_index']
+# _CONNECTIONS = [[1, 2], [2, 3], [3, 7], [0, 1], [0, 4], [4, 5], [5, 6], [6, 8], [10, 9], [12, 14], [14, 16],
+#                 [16, 22], [16, 20], [16, 18], [18, 20], [11, 13], [13, 15], [15, 21], [15, 19], [15, 17], [19, 17],
+#                 [12, 24], [24, 26], [26, 28], [28, 32], [32, 30], [28, 30], [11, 23], [24, 23], [23, 25], [25, 27],
+#                 [27, 29], [29, 31], [27, 31]]

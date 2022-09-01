@@ -31,6 +31,9 @@ from threading import Thread
 import queue
 import json
 from typing import NamedTuple, List, Mapping, Optional, Tuple, Union
+from shapely.geometry import box
+from collections import defaultdict
+import itertools
 
 sys.path.append('/home/robocomp/software/TensorRT-For-YOLO-Series')
 from utils.utils import preproc, vis
@@ -100,7 +103,7 @@ class SpecificWorker(GenericWorker):
         objects = self.post_process(dets, rgb)
         # print(len(objects))
 
-        self.show_data(dets, rgb)
+        #self.show_data(dets, rgb)
         # print(len(objects.objects), len(objects.people))
         # t3 = time.time()
 
@@ -168,7 +171,29 @@ class SpecificWorker(GenericWorker):
                 ibox.right = int(box[2])
                 ibox.bot = int(box[3])
                 self.data.objects.append(ibox)
+
+        self.data.objects = self.nms(self.data.objects)
         return self.data
+
+    def nms(self, objects):
+        d = defaultdict(list)
+        for obj in objects:
+            d[obj.type].append(obj)
+        removed = []
+        for typ, same_type_objs in d.items():
+            power_set = itertools.combinations(same_type_objs, 2)   # possible combs of same type
+            # compute IOU
+            for a, b in power_set:
+                p1 = box(a.left, a.top, a.right, a.bot)  # shapely object
+                p2 = box(b.left, b.top, b.right, b.bot)
+                intersect = p1.intersection(p2).area / p1.union(p2).area
+                if intersect > 0.65:
+                    removed.append(a.id if abs(a.prob) > abs(b.prob) else b.id)
+        ret = []
+        for obj in objects:
+            if obj.id not in removed:
+                ret.append(obj)
+        return ret
 
     def show_fps(self):
         if time.time() - self.last_time > 1:

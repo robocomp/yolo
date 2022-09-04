@@ -62,12 +62,12 @@ _OBJECT_NAMES = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 't
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
-        self.Period = 5
+        self.Period = 33 
         if startup_check:
             self.startup_check()
         else:
             # trt
-            self.yolo_object_predictor = BaseEngine(engine_path='yolov7-tiny.trt')
+            self.yolo_object_predictor = BaseEngine(engine_path='yolov7.trt')
 
             # Hz
             self.cont = 0
@@ -76,7 +76,7 @@ class SpecificWorker(GenericWorker):
 
             # camera read thread
             self.read_queue = queue.Queue(1)
-            self.read_thread = Thread(target=self.get_rgb_thread, args=["camera_top"], name="read_queue")
+            self.read_thread = Thread(target=self.get_rgb_thread, args=["camera_top"], name="read_queue", daemon=True)
             self.read_thread.start()
 
             self.timer.timeout.connect(self.compute)
@@ -84,7 +84,9 @@ class SpecificWorker(GenericWorker):
 
             # result data
             self.write_queue = queue.Queue(1)
-            self.data = ifaces.RoboCompYoloObjects.TData()
+            self.objects_write = ifaces.RoboCompYoloObjects.TData()
+            self.objects_read = ifaces.RoboCompYoloObjects.TData()
+            
 
     def __del__(self):
         """Destructor"""
@@ -94,24 +96,23 @@ class SpecificWorker(GenericWorker):
 
     @QtCore.Slot()
     def compute(self):
+        #t1 = time.time()
         rgb = self.read_queue.get()
+        #rgb = self.get_rgb('camera_top')
 
-        # t1 = time.time()
+        #t2 = time.time()
         dets = self.yolov7_objects(rgb)
-        # t2 = time.time()
+        #t3 = time.time()
 
-        objects = self.post_process(dets, rgb)
-        # print(len(objects))
-
+        self.objects_write = self.post_process(dets, rgb)
+        #print(len(data.objects))
+        
         #self.show_data(dets, rgb)
-        # print(len(objects.objects), len(objects.people))
-        # t3 = time.time()
+        # print(len(objects.objects), len(self.objects_write.people))
 
-        try:
-            self.write_queue.put_nowait(objects)
-        except:
-            pass
-        # print(1000.0*(t3-t1), 1000.0*(t2-t1), 1000.0*(t3-t2))
+        self.objects_write, self.objects_read = self.objects_read, self.objects_write
+        
+        #print(1000.0*(t3-t1), 1000.0*(t2-t1), 1000.0*(t3-t2))
 
         # FPS
         self.show_fps()
@@ -152,8 +153,9 @@ class SpecificWorker(GenericWorker):
         return dets
 
     def post_process(self, dets, frame):
-        self.data.objects = []
-        self.data.people = []
+        data = ifaces.RoboCompYoloObjects.TData()
+        data.objects = []
+        data.people = []
         if dets is not None:
             final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
             for i in range(len(final_boxes)):
@@ -170,10 +172,10 @@ class SpecificWorker(GenericWorker):
                 ibox.top = int(box[1])
                 ibox.right = int(box[2])
                 ibox.bot = int(box[3])
-                self.data.objects.append(ibox)
+                data.objects.append(ibox)
 
-        self.data.objects = self.nms(self.data.objects)
-        return self.data
+        data.objects = self.nms(data.objects)
+        return data
 
     def nms(self, objects):
         d = defaultdict(list)
@@ -262,13 +264,12 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of getYoloObjectNames method from YoloObjects interf
     #
     def YoloObjects_getYoloObjectNames(self):
-
         return self.yolo_object_predictor.class_names
-
+    
     # IMPLEMENTATION of getYoloObjects method from YoloObjects interface
     #
     def YoloObjects_getYoloObjects(self):
-        return self.write_queue.get()
+        return self.objects_read
 
     ######################
     # From the RoboCompCameraRGBDSimple you can call this methods:

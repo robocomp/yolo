@@ -1,0 +1,13 @@
+import "CameraRGBDSimple.idsl";
+import "YoloObjects.idsl";
+
+Component yolov5_sort
+{
+    Communications
+    {
+        implements YoloObjects;
+        requires CameraRGBDSimple;
+    };
+    language python;
+};
+

@@ -59,24 +59,19 @@ console = Console(highlight=False)
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
-        self.Period = 33
+        self.Period = 1
 
         yolo_weights = WEIGHTS + '/yolov5m.pt'  # model.pt path(s)
-        strong_sort_weights = WEIGHTS + '/osnet_x0_25_msmt17.pt'  # model.pt path,
+        #strong_sort_weights = WEIGHTS + '/osnet_x0_25_msmt17.pt'  # model.pt path,
+        strong_sort_weights = WEIGHTS + '/osnet_x0_25_market1501.pt'
         config_strongsort = STRONGSORT + '/configs/strong_sort.yaml'
         imgsz = (640, 640)  # inference size (height, width)
         self.conf_thres = 0.25  # confidence threshold
         self.iou_thres = 0.45  # NMS IOU threshold
         self.max_det = 1000  # maximum detections per image
-        self.classes = 0  # filter by class: --class 0, or --class 0 2 3
+        self.classes = None  # filter by class: --class 0, or --class 0 2 3
         self.agnostic_nms = False  # class-agnostic NMS
         self.device = 0  # cuda device, i.e. 0 or 0,1,2,3 or cpu
-        show_vid = False  # show results
-        classes = None  # filter by class: --class 0, or --class 0 2 3
-        agnostic_nms = False  # class-agnostic NMS
-        augment = False  # augmented inference
-        visualize = False  # visualize features
-        update = False  # update all models
         line_thickness = 3  # bounding box thickness (pixels)
         self.half = False  # use FP16 half-precision inference
         dnn = False  # use OpenCV DNN for ONNX inference
@@ -123,6 +118,11 @@ class SpecificWorker(GenericWorker):
         self.read_thread = Thread(target=self.get_rgb_thread, args=[self.camera_name], name="read_camera_queue", daemon=True)
         self.read_thread.start()
 
+        # Hz
+        self.cont = 0
+        self.last_time = time.time()
+        self.fps = 0
+
         if startup_check:
             self.startup_check()
         else:
@@ -144,83 +144,59 @@ class SpecificWorker(GenericWorker):
     @QtCore.Slot()
     def compute(self):
         t1 = time_sync()
-        color = self.read_image_queue.get()
-        im, _, _ = letterbox(color)  # padded resize
-        im = im.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
-        im = np.ascontiguousarray(im)  # contiguous
-        im = torch.from_numpy(im).to(self.device)
-        im = im.half() if self.half else im.float()  # uint8 to fp16/32
-        im /= 255.0  # 0 - 255 to 0.0 - 1.0
-        if len(im.shape) == 3:
-            im = im[None]  # expand for batch dim
+        color, im, pred = self.read_image_queue.get()
         t2 = time_sync()
-        
-        # Inference
-        pred = self.model(im, augment=self.augment, visualize=False)
-        t3 = time_sync()
-        
-        # Apply NMS
-        pred = non_max_suppression(pred, self.conf_thres, self.iou_thres, self.classes,
-                                   self.agnostic_nms, max_det=self.max_det)
-        t4 = time_sync()
     
         # Process detections
-        if(len(pred)>0):
+        if pred and pred[0] is not None and len(pred[0]):
             det = pred[0]
             self.curr_frame = color
             annotator = Annotator(color, line_width=2, pil=not ascii)
-            if self.cfg.STRONGSORT.ECC:  # camera motion compensation
-                self.strongsort.tracker.camera_update(self.prev_frame, self.curr_frame)
+            #if self.cfg.STRONGSORT.ECC:  # camera motion compensation
+            #    self.strongsort.tracker.camera_update(self.prev_frame, self.curr_frame)
 
-            if det is not None and len(det):
-                # Rescale boxes from img_size to im0 size
-                det[:, :4] = scale_coords(im.shape[2:], det[:, :4], color.shape).round()
+            # Rescale boxes from img_size to im0 size
+            det[:, :4] = scale_coords(im.shape[2:], det[:, :4], color.shape).round()
 
-                # Print results
-                s = ''
-                for c in det[:, -1].unique():
-                    n = (det[:, -1] == c).sum()  # detections per class
-                    s += f"{n} {self.model.names[int(c)]}{'s' * (n > 1)}, "  # add to string
+            xywhs = xyxy2xywh(det[:, 0:4])
+            confs = det[:, 4]
+            clss = det[:, 5]
 
-                xywhs = xyxy2xywh(det[:, 0:4])
-                confs = det[:, 4]
-                clss = det[:, 5]
+            # pass detections to strongsort
+            t5 = time_sync()
+            outputs = self.strongsort.update(xywhs.cpu(), confs.cpu(), clss.cpu(), color)
+            t6 = time_sync()
 
-                # pass detections to strongsort
-                t5 = time_sync()
-                outputs = self.strongsort.update(xywhs.cpu(), confs.cpu(), clss.cpu(), color)
-                t6 = time_sync()
+            # draw boxes for visualization
+            for j, (output, conf) in enumerate(zip(outputs, confs)):
+                bboxes = output[0:4]
+                id = output[4]
+                cls = output[5]
+                if self.display:  # Add bbox to image
+                    c = int(cls)  # integer class
+                    id = int(id)  # integer id
+                    label = None if self.hide_labels \
+                        else (f'{id} {self.model.names[c]}' if self.hide_conf
+                              else (f'{id} {conf:.2f}' if self.hide_class else f'{id} {self.model.names[c]} {conf:.2f}'))
+                    annotator.box_label(bboxes, label, color=colors(c, True))
 
-                # draw boxes for visualization
-                for j, (output, conf) in enumerate(zip(outputs, confs)):
-                    bboxes = output[0:4]
-                    id = output[4]
-                    cls = output[5]
-                    if self.display:  # Add bbox to image
-                        c = int(cls)  # integer class
-                        id = int(id)  # integer id
-                        label = None if self.hide_labels \
-                            else (f'{id} {self.model.names[c]}' if self.hide_conf
-                                  else (f'{id} {conf:.2f}' if self.hide_class else f'{id} {self.model.names[c]} {conf:.2f}'))
-                        annotator.box_label(bboxes, label, color=colors(c, True))
+            #print(1000.0 * (t2 - t1), 1000.0 * (t6 - t5))
+        else:
+            self.strongsort.increment_ages()
+            LOGGER.info('No detections')
 
-                print(1000.0 * (t2 - t1), 1000.0 * (t3 - t2), 1000.0 * (t4 - t3),
-                      1000.0 * (t5 - t4), 1000.0 * (t6 - t5))
-            else:
-                self.strongsort.increment_ages()
-                LOGGER.info('No detections')
+        # Stream results
+        color = annotator.result()
+        if self.display:
+            cv2.imshow('TRACKER', color)
+            cv2.waitKey(1)  # 1 millisecond
 
-            # Stream results
-            color = annotator.result()
-            if self.display:
-                cv2.imshow('TRACKER', color)
-                cv2.waitKey(1)  # 1 millisecond
+        self.prev_frame = self.curr_frame
+        t7 = time_sync()
+        #print(1000.0 * (t7 - t1))
 
-            self.prev_frame = self.curr_frame
-            t7 = time_sync()
-            print(1000.0 * (t7 - t1))
-
-        return True
+        # FPS
+        self.show_fps()
 
     ############################################################################################
     def get_rgb_thread(self, camera_name: str):
@@ -229,13 +205,36 @@ class SpecificWorker(GenericWorker):
                 rgb = self.camerargbdsimple_proxy.getImage(camera_name)
                 self.image_captured_time = time.time()
                 color = np.frombuffer(rgb.image, dtype=np.uint8).reshape(rgb.height, rgb.width, 3)
-                #depth = np.frombuffer(rgbd.depth.depth, dtype=np.float32).reshape(rgbd.depth.height, rgbd.depth.width,                                                                 1)
-                self.read_image_queue.put(color)
+                im, _, _ = letterbox(color)  # padded resize
+                im = im.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+                im = np.ascontiguousarray(im)  # contiguous
+                im = torch.from_numpy(im).to(self.device)
+                im = im.half() if self.half else im.float()  # uint8 to fp16/32
+                im /= 255.0  # 0 - 255 to 0.0 - 1.0
+                if len(im.shape) == 3:
+                    im = im[None]  # expand for batch dim                                                                1)
+                pred = self.model(im, augment=self.augment, visualize=False)
+
+                # Apply NMS
+                pred = non_max_suppression(pred, self.conf_thres, self.iou_thres, self.classes,
+                                           self.agnostic_nms, max_det=self.max_det)
+
+                if self.cfg.STRONGSORT.ECC:  # camera motion compensation
+                   self.strongsort.tracker.camera_update(self.prev_frame, color)
+
+                self.read_image_queue.put([color, im, pred])
             except:
                 print("Error communicating with CameraRGBDSimple")
                 traceback.print_exc()
                 break
 
+    def show_fps(self):
+        if time.time() - self.last_time > 1:
+            self.last_time = time.time()
+            print("Freq: ", self.cont, "Hz. Waiting for image")
+            self.cont = 0
+        else:
+            self.cont += 1
     ##########################################################################################
     def startup_check(self):
         print(f"Testing RoboCompCameraRGBDSimple.TImage from ifaces.RoboCompCameraRGBDSimple")

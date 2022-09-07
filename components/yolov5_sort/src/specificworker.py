@@ -60,6 +60,7 @@ class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
         self.Period = 1
+        self.display = False
 
         yolo_weights = WEIGHTS + '/yolov5m.pt'  # model.pt path(s)
         #strong_sort_weights = WEIGHTS + '/osnet_x0_25_msmt17.pt'  # model.pt path,
@@ -91,8 +92,9 @@ class SpecificWorker(GenericWorker):
             self.device = select_device(self.device)
         print(yolo_weights)
         self.model = DetectMultiBackend(yolo_weights, device=self.device, dnn=dnn, data=None, fp16=self.half)
-        stride, names, pt = self.model.stride, self.model.names, self.model.pt
-        imgsz = check_img_size(imgsz, s=stride)  # check image size
+        print("Class categories:", list(self.model.names.values()))
+
+        check_img_size(imgsz, s=self.model.stride)  # check image size
 
         self.cfg = get_config()
         self.cfg.merge_from_file(config_strongsort)
@@ -123,6 +125,10 @@ class SpecificWorker(GenericWorker):
         self.last_time = time.time()
         self.fps = 0
 
+        # result data
+        self.objects_write = ifaces.RoboCompYoloObjects.TData()
+        self.objects_read = ifaces.RoboCompYoloObjects.TData()
+
         if startup_check:
             self.startup_check()
         else:
@@ -133,67 +139,34 @@ class SpecificWorker(GenericWorker):
         """Destructor"""
 
     def setParams(self, params):
-        # try:
-        #	self.innermodel = InnerModel(params["InnerModelPath"])
-        # except:
-        #	traceback.print_exc()
-        #	print("Error reading config params")
+        try:
+            self.display = params["display"] == "true" or params["display"] == "True"
+            print("Config params:", params)
+        except:
+            traceback.print_exc()
+            print("Error reading config params")
         return True
 
 
     @QtCore.Slot()
     def compute(self):
         t1 = time_sync()
-        color, im, pred = self.read_image_queue.get()
+        color, net_img, pred = self.read_image_queue.get()
         t2 = time_sync()
-    
-        # Process detections
-        if pred and pred[0] is not None and len(pred[0]):
-            det = pred[0]
-            self.curr_frame = color
-            annotator = Annotator(color, line_width=2, pil=not ascii)
-            #if self.cfg.STRONGSORT.ECC:  # camera motion compensation
-            #    self.strongsort.tracker.camera_update(self.prev_frame, self.curr_frame)
 
-            # Rescale boxes from img_size to im0 size
-            det[:, :4] = scale_coords(im.shape[2:], det[:, :4], color.shape).round()
+        outputs, confs = self.post_process(net_img, color, pred)
+        t3 = time_sync()
 
-            xywhs = xyxy2xywh(det[:, 0:4])
-            confs = det[:, 4]
-            clss = det[:, 5]
+        self.objects_write = self.fill_interface_data(outputs, confs)
 
-            # pass detections to strongsort
-            t5 = time_sync()
-            outputs = self.strongsort.update(xywhs.cpu(), confs.cpu(), clss.cpu(), color)
-            t6 = time_sync()
-
-            # draw boxes for visualization
-            for j, (output, conf) in enumerate(zip(outputs, confs)):
-                bboxes = output[0:4]
-                id = output[4]
-                cls = output[5]
-                if self.display:  # Add bbox to image
-                    c = int(cls)  # integer class
-                    id = int(id)  # integer id
-                    label = None if self.hide_labels \
-                        else (f'{id} {self.model.names[c]}' if self.hide_conf
-                              else (f'{id} {conf:.2f}' if self.hide_class else f'{id} {self.model.names[c]} {conf:.2f}'))
-                    annotator.box_label(bboxes, label, color=colors(c, True))
-
-            #print(1000.0 * (t2 - t1), 1000.0 * (t6 - t5))
-        else:
-            self.strongsort.increment_ages()
-            LOGGER.info('No detections')
-
-        # Stream results
-        color = annotator.result()
         if self.display:
-            cv2.imshow('TRACKER', color)
-            cv2.waitKey(1)  # 1 millisecond
+            self.draw_results(color, outputs, confs)
+        t4 = time_sync()
+
+        self.objects_write, self.objects_read = self.objects_read, self.objects_write
 
         self.prev_frame = self.curr_frame
-        t7 = time_sync()
-        #print(1000.0 * (t7 - t1))
+        #print(1000.0 * (t4 - t1))
 
         # FPS
         self.show_fps()
@@ -227,6 +200,64 @@ class SpecificWorker(GenericWorker):
                 print("Error communicating with CameraRGBDSimple")
                 traceback.print_exc()
                 break
+
+    def post_process(self, im, color, pred):
+        # Process detections
+        if pred and pred[0] is not None and len(pred[0]):
+            det = pred[0]
+            self.curr_frame = color
+
+            # Rescale boxes from img_size to im0 size
+            det[:, :4] = scale_coords(im.shape[2:], det[:, :4], color.shape).round()
+            xywhs = xyxy2xywh(det[:, 0:4])
+            confs = det[:, 4]
+            clss = det[:, 5]
+
+            # pass detections to strongsort
+            outputs = self.strongsort.update(xywhs.cpu(), confs.cpu(), clss.cpu(), color)
+        else:
+            self.strongsort.increment_ages()
+            print('No detections')
+        return outputs, confs
+
+    def fill_interface_data(self, outputs, confs):
+        data = ifaces.RoboCompYoloObjects.TData()
+        data.objects = []
+        data.people = []
+        for j, (output, conf) in enumerate(zip(outputs, confs)):
+            box = output[0:4]
+            ids = output[4]
+            cls = output[5]
+            ibox = ifaces.RoboCompYoloObjects.TBox()
+            ibox.type = int(cls)
+            ibox.id = ids
+            ibox.score = conf
+            ibox.left = int(box[0])
+            ibox.top = int(box[1])
+            ibox.right = int(box[2])
+            ibox.bot = int(box[3])
+            data.objects.append(ibox)
+        return data
+
+    def draw_results(self, color, outputs, confs):
+        # draw boxes for visualization
+        annotator = Annotator(color, line_width=2, pil=not ascii)
+        for j, (output, conf) in enumerate(zip(outputs, confs)):
+            bboxes = output[0:4]
+            ids = output[4]
+            cls = output[5]
+            if self.display:  # Add bbox to image
+                c = int(cls)  # integer class
+                ids = int(ids)  # integer id
+                label = None if self.hide_labels \
+                    else (f'{ids} {self.model.names[c]}' if self.hide_conf
+                          else (f'{ids} {conf:.2f}' if self.hide_class else f'{ids} {self.model.names[c]} {conf:.2f}'))
+                annotator.box_label(bboxes, label, color=colors(c, True))
+
+        # Stream results
+        if self.display:
+            cv2.imshow('TRACKER', annotator.result())
+            cv2.waitKey(1)  # 1 millisecond
 
     def show_fps(self):
         if time.time() - self.last_time > 1:
@@ -282,20 +313,13 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of getYoloObjectNames method from YoloObjects interface
     #
     def YoloObjects_getYoloObjectNames(self):
-        ret = RoboCompYoloObjects.TObjectNames()
-        #
-        # write your CODE here
-        #
-        return ret
+        return list(self.model.names.values())
     #
     # IMPLEMENTATION of getYoloObjects method from YoloObjects interface
     #
     def YoloObjects_getYoloObjects(self):
-        ret = ifaces.RoboCompYoloObjects.TData()
-        #
-        # write your CODE here
-        #
-        return ret
+        return self.objects_read
+
     # ===================================================================
     # ===================================================================
 

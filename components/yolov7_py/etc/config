@@ -2,7 +2,7 @@
 YoloObjects.Endpoints=tcp -p 10054
 
 # Proxies for required interfaces
-CameraRGBDSimpleProxy = camerargbdsimple:tcp -h robex.local -p 10095
+CameraRGBDSimpleProxy = camerargbdsimple:tcp  -p 10096
 
 
 

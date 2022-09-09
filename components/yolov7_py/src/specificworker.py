@@ -167,7 +167,7 @@ class SpecificWorker(GenericWorker):
                 ibox = ifaces.RoboCompYoloObjects.TBox()
                 ibox.type = int(final_cls_inds[i])
                 ibox.id = i
-                ibox.prob = final_scores[i]
+                ibox.score = final_scores[i]
                 ibox.left = int(box[0])
                 ibox.top = int(box[1])
                 ibox.right = int(box[2])

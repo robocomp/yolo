@@ -62,6 +62,13 @@ _OBJECT_NAMES = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 't
                  'scissors',
                  'teddy bear', 'hair drier', 'toothbrush']
 
+_ROBOLAB_NAMES = ['person', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'bottle', 'wine glass', 'cup',
+                  'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
+                  'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'dining table',
+                  'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven',
+                  'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
+                  'toothbrush']
+
 _COLORS = np.array(
     [
         0.000, 0.447, 0.741,
@@ -161,7 +168,7 @@ class SpecificWorker(GenericWorker):
             self.yolo_object_predictor = BaseEngine(engine_path='yolov7.trt')
 
             # byte tracker
-            self.tracker = BYTETracker(frame_rate=60)
+            self.tracker = BYTETracker(frame_rate=30)
 
             # Hz
             self.cont = 0
@@ -199,51 +206,29 @@ class SpecificWorker(GenericWorker):
     def compute(self):
         #t1 = time.time()
         rgb, blob, alive_time, period = self.read_queue.get()
-
         #t2 = time.time()
+
         dets = self.yolov7_objects(blob)
-        #t3 = time.time()
 
         if dets is not None:
-            tracked_boxes = []
-            tracked_scores = []
-            tracked_ids = []
             boxes, scores, cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-            person_inds = (cls_inds == 0)
-            people_scores = scores[person_inds]
-            people_boxes = boxes[person_inds]
-            online_targets = self.tracker.update2(people_scores, people_boxes, [640, 640], (640, 640))
-            for t in online_targets:
-                tlwh = t.tlwh
-                tid = t.track_id
-                vertical = tlwh[2] / tlwh[3] > 1.6
-                if tlwh[2] * tlwh[3] > 10 and not vertical:
-                    tracked_boxes.append(tlwh)
-                    tracked_ids.append(tid)
-                    tracked_scores.append(t.score)
+            #t3 = time.time()
 
-            if tracked_boxes:
-                tracked_boxes = np.asarray(tracked_boxes)
-                tracked_boxes[:, 2] = tracked_boxes[:, 0] + tracked_boxes[:, 2]
-                tracked_boxes[:, 3] = tracked_boxes[:, 1] + tracked_boxes[:, 3]
+            tracked_boxes, tracked_scores, tracked_cls_inds, tracked_inds = self.track(boxes, scores, cls_inds)
+            #t4 = time.time()
+
+            self.objects_write = self.post_process(tracked_boxes, tracked_scores, tracked_cls_inds, tracked_inds)
+            #t5 = time.time()
+
+            self.objects_write, self.objects_read = self.objects_read, self.objects_write
 
             if self.display:
-                rgb = self.display_data(rgb, tracked_boxes, tracked_scores, tracked_ids, [], [], [],
-                                    conf=0.5, class_names=self.yolo_object_predictor.class_names)
+                rgb = self.display_data(rgb, tracked_boxes, tracked_scores, tracked_cls_inds, tracked_inds,
+                                        class_names=self.yolo_object_predictor.class_names)
+
         if self.display:
             cv2.imshow("Detected Objects", rgb)
             cv2.waitKey(1)
-
-        #t4 = time.time()
-        self.objects_write = self.post_process(dets, 0.5)
-        #t5 = time.time()
-
-        # print(len(data.objects))
-
-        # self.show_data(dets, rgb)
-        # print(len(objects.objects), len(self.objects_write.people))
-
-        self.objects_write, self.objects_read = self.objects_read, self.objects_write
 
         #print(1000.0*(t2-t1), 1000.0*(t3-t2), 1000.0*(t4-t3), 1000.0*(t5-t4))
 
@@ -300,27 +285,59 @@ class SpecificWorker(GenericWorker):
                                np.array(final_cls_inds)[:num[0]].reshape(-1, 1)], axis=-1)
         return dets
 
-    def post_process(self, dets, conf):
+    def track(self, boxes, scores, cls_inds):
+        final_boxes = []
+        final_scores = []
+        final_cls_ids = []
+        final_ids = []
+        people_inds = [i for i, cls in enumerate(cls_inds) if cls == 0]   # index of elements with value 0
+        people_scores = scores[people_inds]
+        people_boxes = boxes[people_inds]
+        online_targets = self.tracker.update2(people_scores, people_boxes, [640, 640], (640, 640))
+        tracked_boxes = []
+        tracked_scores = []
+        tracked_ids = []
+        for t in online_targets:
+            tlwh = t.tlwh
+            tid = t.track_id
+            vertical = tlwh[2] / tlwh[3] > 1.6
+            if tlwh[2] * tlwh[3] > 10 and not vertical:
+                tracked_boxes.append(tlwh)
+                tracked_ids.append(tid)
+                tracked_scores.append(t.score)
+
+        if tracked_boxes:
+            tracked_boxes = np.asarray(tracked_boxes)
+            tracked_boxes[:, 2] = tracked_boxes[:, 0] + tracked_boxes[:, 2]
+            tracked_boxes[:, 3] = tracked_boxes[:, 1] + tracked_boxes[:, 3]
+
+            # we replace the original person boxes by the tracked ones
+            non_people_cls_inds = [i for i, cls in enumerate(cls_inds) if cls != 0]  # index of non-person elements
+            final_boxes = np.append(boxes[non_people_cls_inds], tracked_boxes, axis=0)  # non-person boxes + tracked people
+            final_scores = np.append(scores[non_people_cls_inds], tracked_scores, axis=0)
+            final_ids = np.append(np.full(len(non_people_cls_inds), -1), tracked_ids, axis=0)
+            final_cls_ids = np.append(cls_inds[non_people_cls_inds], np.zeros(len(people_inds)), axis=0)
+        return final_boxes, final_scores, final_cls_ids, final_ids
+        
+    def post_process(self, final_boxes, final_scores, final_cls_inds, final_inds):
         data = ifaces.RoboCompYoloObjects.TData()
         data.objects = []
         data.people = []
-        if dets is not None:
-            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-            for i in range(len(final_boxes)):
-                box = final_boxes[i]
-                # if score < conf:
-                #    continue
 
-                # copy to interface
-                ibox = ifaces.RoboCompYoloObjects.TBox()
-                ibox.type = int(final_cls_inds[i])
-                ibox.id = i
-                ibox.score = final_scores[i]
-                ibox.left = int(box[0])
-                ibox.top = int(box[1])
-                ibox.right = int(box[2])
-                ibox.bot = int(box[3])
-                data.objects.append(ibox)
+        for i in range(len(final_boxes)):
+            box = final_boxes[i]
+            # if score < conf:
+            #    continue
+            # copy to interface
+            ibox = ifaces.RoboCompYoloObjects.TBox()
+            ibox.type = int(final_cls_inds[i])
+            ibox.id = int(final_inds[i])
+            ibox.score = final_scores[i]
+            ibox.left = int(box[0])
+            ibox.top = int(box[1])
+            ibox.right = int(box[2])
+            ibox.bot = int(box[3])
+            data.objects.append(ibox)
 
         #data.objects = self.nms(data.objects)
         return data
@@ -357,44 +374,21 @@ class SpecificWorker(GenericWorker):
         else:
             self.cont += 1
 
-    def display_data(self, img, tracked_boxes, tracked_scores, tracked_ids, boxes, cls_ids, scores, conf=0.5, class_names=None):
-        for i in range(len(tracked_boxes)):
-            box = tracked_boxes[i]
-            track_id = int(tracked_ids[i])
-            score = tracked_scores[i]
-            if score < conf:
-                continue
-            x0 = int(box[0])
-            y0 = int(box[1])
-            x1 = int(box[2])
-            y1 = int(box[3])
-
-            color = (_COLORS[track_id] * 255).astype(np.uint8).tolist()
-            text = '{} : {:.1f}% : {}'.format(class_names[0], score * 100, track_id)
-            txt_color = (0, 0, 0) if np.mean(_COLORS[track_id]) > 0.5 else (255, 255, 255)
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            txt_size = cv2.getTextSize(text, font, 0.4, 1)[0]
-            cv2.rectangle(img, (x0, y0), (x1, y1), color, 2)
-            txt_bk_color = (_COLORS[track_id] * 255 * 0.7).astype(np.uint8).tolist()
-            cv2.rectangle(
-                img,
-                (x0, y1 - 1),
-                (x0 + txt_size[0] + 1, y1 - int(1.5 * txt_size[1])),
-                txt_bk_color,
-                -1
-            )
-            cv2.putText(img, text, (x0, y1 - txt_size[1]), font, 0.4, txt_color, thickness=1)
-
+    def display_data(self, img, boxes, scores, cls_inds, inds, class_names=None):
+        #print(len(inds), len(boxes))
         for i in range(len(boxes)):
+            if inds[i] == -1:
+                continue
             bb = boxes[i]
-            ids = int(cls_ids[i])
+            cls_ids = int(cls_inds[i])
+            ids = inds[i]
             score = scores[i]
             x0 = int(bb[0])
             y0 = int(bb[1])
             x1 = int(bb[2])
             y1 = int(bb[3])
             color = (_COLORS[ids] * 255).astype(np.uint8).tolist()
-            text = '{} : {:.1f}%'.format(class_names[ids], score*100)
+            text = 'Class: {} - Score: {:.1f}% - ID: {}'.format(class_names[cls_ids], score*100, ids)
             txt_color = (0, 0, 0) if np.mean(_COLORS[ids]) > 0.5 else (255, 255, 255)
             font = cv2.FONT_HERSHEY_SIMPLEX
             txt_size = cv2.getTextSize(text, font, 0.4, 1)[0]

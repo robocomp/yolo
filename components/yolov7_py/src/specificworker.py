@@ -152,6 +152,8 @@ class SpecificWorker(GenericWorker):
         super(SpecificWorker, self).__init__(proxy_map)
         self.Period = 1
         self.thread_period = 10
+        self.display = False
+
         if startup_check:
             self.startup_check()
         else:
@@ -184,6 +186,13 @@ class SpecificWorker(GenericWorker):
         """Destructor"""
 
     def setParams(self, params):
+        try:
+            self.display = params["display"] == "true" or params["display"] == "True"
+            print("Params read. Starting...", params)
+        except:
+            print("Error reading config params")
+            traceback.print_exc()
+
         return True
 
     @QtCore.Slot()
@@ -218,13 +227,15 @@ class SpecificWorker(GenericWorker):
                 tracked_boxes[:, 2] = tracked_boxes[:, 0] + tracked_boxes[:, 2]
                 tracked_boxes[:, 3] = tracked_boxes[:, 1] + tracked_boxes[:, 3]
 
-            rgb = self.display_data(rgb, tracked_boxes, tracked_scores, tracked_ids, [], [], [],
+            if self.display:
+                rgb = self.display_data(rgb, tracked_boxes, tracked_scores, tracked_ids, [], [], [],
                                     conf=0.5, class_names=self.yolo_object_predictor.class_names)
-        cv2.imshow("Detected Objects", rgb)
-        cv2.waitKey(1)
+        if self.display:
+            cv2.imshow("Detected Objects", rgb)
+            cv2.waitKey(1)
 
         #t4 = time.time()
-        self.objects_write = self.post_process(dets)
+        self.objects_write = self.post_process(dets, 0.5)
         #t5 = time.time()
 
         # print(len(data.objects))
@@ -262,14 +273,25 @@ class SpecificWorker(GenericWorker):
                 rgb = self.camerargbdsimple_proxy.getImage(camera_name)
                 frame = np.frombuffer(rgb.image, dtype=np.uint8)
                 frame = frame.reshape((rgb.height, rgb.width, 3))
-                blob = self.preproc(frame, (640, 640))
-                self.read_queue.put([frame, blob, int(1000*time.time() - rgb.alivetime), rgb.period])
+                blob = self.pre_process(frame, (640, 640))
+                delta = int(1000 * time.time() - rgb.alivetime)
+                self.read_queue.put([frame, blob, delta, rgb.period])
                 event.wait(self.thread_period/1000)
             except:
                 print("Error communicating with CameraRGBDSimple")
                 traceback.print_exc()
 
     ###############################################################
+    def pre_process(self, image, input_size, swap=(2, 0, 1)):
+        padded_img = np.ones((input_size[0], input_size[1], 3))
+        img = np.array(image).astype(np.float32)
+        padded_img[: int(img.shape[0]), : int(img.shape[1])] = img
+        padded_img = padded_img[:, :, ::-1]
+        padded_img /= 255.0
+        padded_img = padded_img.transpose(swap)
+        padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
+        return padded_img
+
     def yolov7_objects(self, blob):
         data = self.yolo_object_predictor.infer(blob)
         num, final_boxes, final_scores, final_cls_inds = data
@@ -278,7 +300,7 @@ class SpecificWorker(GenericWorker):
                                np.array(final_cls_inds)[:num[0]].reshape(-1, 1)], axis=-1)
         return dets
 
-    def post_process(self, dets):
+    def post_process(self, dets, conf):
         data = ifaces.RoboCompYoloObjects.TData()
         data.objects = []
         data.people = []
@@ -302,16 +324,6 @@ class SpecificWorker(GenericWorker):
 
         #data.objects = self.nms(data.objects)
         return data
-
-    def preproc(self, image, input_size, swap=(2, 0, 1)):
-        padded_img = np.ones((input_size[0], input_size[1], 3))
-        img = np.array(image).astype(np.float32)
-        padded_img[: int(img.shape[0]), : int(img.shape[1])] = img
-        padded_img = padded_img[:, :, ::-1]
-        padded_img /= 255.0
-        padded_img = padded_img.transpose(swap)
-        padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
-        return padded_img
 
     def nms(self, objects):
         d = defaultdict(list)
@@ -340,9 +352,7 @@ class SpecificWorker(GenericWorker):
             delta = (-1 if (period - cur_period) < -1 else (1 if (period - cur_period) > 1 else 0))
             print("Freq:", self.cont, "Hz. Alive_time:", alive_time, "ms. Img period:", int(period),
                   "ms. Curr period:", cur_period, "ms. Inc:", delta, "Timer:", self.thread_period)
-            self.Period = np.clip(self.Period+delta, 0, 200)
             self.thread_period = np.clip(self.thread_period+delta, 0, 200)
-            self.timer.setInterval(self.Period)
             self.cont = 0
         else:
             self.cont += 1

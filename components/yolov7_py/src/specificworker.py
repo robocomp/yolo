@@ -27,7 +27,8 @@ import numpy as np
 import time
 import math
 import cv2
-from threading import Thread
+from threading import Thread, Event
+import traceback
 import queue
 import json
 from typing import NamedTuple, List, Mapping, Optional, Tuple, Union
@@ -38,6 +39,9 @@ import itertools
 sys.path.append('/home/robocomp/software/TensorRT-For-YOLO-Series')
 from utils.utils import preproc, vis
 from utils.utils import BaseEngine
+
+sys.path.append('/home/robocomp/software/ByteTrack')
+from yolox.tracker.byte_tracker import BYTETracker
 
 # from mediapipe.framework.formats import landmark_pb2, detection_pb2, location_data_pb2
 # import mediapipe as mp
@@ -58,16 +62,104 @@ _OBJECT_NAMES = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 't
                  'scissors',
                  'teddy bear', 'hair drier', 'toothbrush']
 
+_COLORS = np.array(
+    [
+        0.000, 0.447, 0.741,
+        0.850, 0.325, 0.098,
+        0.929, 0.694, 0.125,
+        0.494, 0.184, 0.556,
+        0.466, 0.674, 0.188,
+        0.301, 0.745, 0.933,
+        0.635, 0.078, 0.184,
+        0.300, 0.300, 0.300,
+        0.600, 0.600, 0.600,
+        1.000, 0.000, 0.000,
+        1.000, 0.500, 0.000,
+        0.749, 0.749, 0.000,
+        0.000, 1.000, 0.000,
+        0.000, 0.000, 1.000,
+        0.667, 0.000, 1.000,
+        0.333, 0.333, 0.000,
+        0.333, 0.667, 0.000,
+        0.333, 1.000, 0.000,
+        0.667, 0.333, 0.000,
+        0.667, 0.667, 0.000,
+        0.667, 1.000, 0.000,
+        1.000, 0.333, 0.000,
+        1.000, 0.667, 0.000,
+        1.000, 1.000, 0.000,
+        0.000, 0.333, 0.500,
+        0.000, 0.667, 0.500,
+        0.000, 1.000, 0.500,
+        0.333, 0.000, 0.500,
+        0.333, 0.333, 0.500,
+        0.333, 0.667, 0.500,
+        0.333, 1.000, 0.500,
+        0.667, 0.000, 0.500,
+        0.667, 0.333, 0.500,
+        0.667, 0.667, 0.500,
+        0.667, 1.000, 0.500,
+        1.000, 0.000, 0.500,
+        1.000, 0.333, 0.500,
+        1.000, 0.667, 0.500,
+        1.000, 1.000, 0.500,
+        0.000, 0.333, 1.000,
+        0.000, 0.667, 1.000,
+        0.000, 1.000, 1.000,
+        0.333, 0.000, 1.000,
+        0.333, 0.333, 1.000,
+        0.333, 0.667, 1.000,
+        0.333, 1.000, 1.000,
+        0.667, 0.000, 1.000,
+        0.667, 0.333, 1.000,
+        0.667, 0.667, 1.000,
+        0.667, 1.000, 1.000,
+        1.000, 0.000, 1.000,
+        1.000, 0.333, 1.000,
+        1.000, 0.667, 1.000,
+        0.333, 0.000, 0.000,
+        0.500, 0.000, 0.000,
+        0.667, 0.000, 0.000,
+        0.833, 0.000, 0.000,
+        1.000, 0.000, 0.000,
+        0.000, 0.167, 0.000,
+        0.000, 0.333, 0.000,
+        0.000, 0.500, 0.000,
+        0.000, 0.667, 0.000,
+        0.000, 0.833, 0.000,
+        0.000, 1.000, 0.000,
+        0.000, 0.000, 0.167,
+        0.000, 0.000, 0.333,
+        0.000, 0.000, 0.500,
+        0.000, 0.000, 0.667,
+        0.000, 0.000, 0.833,
+        0.000, 0.000, 1.000,
+        0.000, 0.000, 0.000,
+        0.143, 0.143, 0.143,
+        0.286, 0.286, 0.286,
+        0.429, 0.429, 0.429,
+        0.571, 0.571, 0.571,
+        0.714, 0.714, 0.714,
+        0.857, 0.857, 0.857,
+        0.000, 0.447, 0.741,
+        0.314, 0.717, 0.741,
+        0.50, 0.5, 0
+    ]
+).astype(np.float32).reshape(-1, 3)
 
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
-        self.Period = 33 
+        self.Period = 1
+        self.thread_period = 10
         if startup_check:
             self.startup_check()
         else:
             # trt
             self.yolo_object_predictor = BaseEngine(engine_path='yolov7.trt')
+
+            # byte tracker
+            self.tracker = BYTETracker(frame_rate=60)
 
             # Hz
             self.cont = 0
@@ -76,17 +168,17 @@ class SpecificWorker(GenericWorker):
 
             # camera read thread
             self.read_queue = queue.Queue(1)
-            self.read_thread = Thread(target=self.get_rgb_thread, args=["camera_top"], name="read_queue", daemon=True)
+            self.event = Event()
+            self.read_thread = Thread(target=self.get_rgb_thread, args=["camera_top", self.event], 
+                                      name="read_queue", daemon=True)
             self.read_thread.start()
+
+            # result data
+            self.objects_write = ifaces.RoboCompYoloObjects.TData()
+            self.objects_read = ifaces.RoboCompYoloObjects.TData()
 
             self.timer.timeout.connect(self.compute)
             self.timer.start(self.Period)
-
-            # result data
-            self.write_queue = queue.Queue(1)
-            self.objects_write = ifaces.RoboCompYoloObjects.TData()
-            self.objects_read = ifaces.RoboCompYoloObjects.TData()
-            
 
     def __del__(self):
         """Destructor"""
@@ -97,27 +189,59 @@ class SpecificWorker(GenericWorker):
     @QtCore.Slot()
     def compute(self):
         #t1 = time.time()
-        rgb = self.read_queue.get()
-        #rgb = self.get_rgb('camera_top')
+        rgb, blob, alive_time, period = self.read_queue.get()
 
         #t2 = time.time()
-        dets = self.yolov7_objects(rgb)
+        dets = self.yolov7_objects(blob)
         #t3 = time.time()
 
-        self.objects_write = self.post_process(dets, rgb)
-        #print(len(data.objects))
-        
-        #self.show_data(dets, rgb)
+        if dets is not None:
+            tracked_boxes = []
+            tracked_scores = []
+            tracked_ids = []
+            boxes, scores, cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+            person_inds = (cls_inds == 0)
+            people_scores = scores[person_inds]
+            people_boxes = boxes[person_inds]
+            online_targets = self.tracker.update2(people_scores, people_boxes, [640, 640], (640, 640))
+            for t in online_targets:
+                tlwh = t.tlwh
+                tid = t.track_id
+                vertical = tlwh[2] / tlwh[3] > 1.6
+                if tlwh[2] * tlwh[3] > 10 and not vertical:
+                    tracked_boxes.append(tlwh)
+                    tracked_ids.append(tid)
+                    tracked_scores.append(t.score)
+
+            if tracked_boxes:
+                tracked_boxes = np.asarray(tracked_boxes)
+                tracked_boxes[:, 2] = tracked_boxes[:, 0] + tracked_boxes[:, 2]
+                tracked_boxes[:, 3] = tracked_boxes[:, 1] + tracked_boxes[:, 3]
+
+            rgb = self.display_data(rgb, tracked_boxes, tracked_scores, tracked_ids, [], [], [],
+                                    conf=0.5, class_names=self.yolo_object_predictor.class_names)
+        cv2.imshow("Detected Objects", rgb)
+        cv2.waitKey(1)
+
+        #t4 = time.time()
+        self.objects_write = self.post_process(dets)
+        #t5 = time.time()
+
+        # print(len(data.objects))
+
+        # self.show_data(dets, rgb)
         # print(len(objects.objects), len(self.objects_write.people))
 
         self.objects_write, self.objects_read = self.objects_read, self.objects_write
-        
-        #print(1000.0*(t3-t1), 1000.0*(t2-t1), 1000.0*(t3-t2))
+
+        #print(1000.0*(t2-t1), 1000.0*(t3-t2), 1000.0*(t4-t3), 1000.0*(t5-t4))
 
         # FPS
-        self.show_fps()
+        try:
+            self.show_fps(alive_time, period)
+        except KeyboardInterrupt:
+            event.set()
 
-        return True
 
     ###########################################################################################3
 
@@ -128,31 +252,33 @@ class SpecificWorker(GenericWorker):
             frame = frame.reshape((rgb.height, rgb.width, 3))
         except:
             print("Error communicating with CameraRGBDSimple")
+            traceback.print_exc()
             return
         return frame
 
-    def get_rgb_thread(self, camera_name: str):
-        while True:
+    def get_rgb_thread(self, camera_name: str, event: Event):
+        while not event.isSet():
             try:
                 rgb = self.camerargbdsimple_proxy.getImage(camera_name)
                 frame = np.frombuffer(rgb.image, dtype=np.uint8)
                 frame = frame.reshape((rgb.height, rgb.width, 3))
-                self.read_queue.put(frame)
+                blob = self.preproc(frame, (640, 640))
+                self.read_queue.put([frame, blob, int(1000*time.time() - rgb.alivetime), rgb.period])
+                event.wait(self.thread_period/1000)
             except:
                 print("Error communicating with CameraRGBDSimple")
-                return
+                traceback.print_exc()
 
     ###############################################################
-    def yolov7_objects(self, frame):
-        blob, ratio = preproc(frame, (640, 640), None, None)
+    def yolov7_objects(self, blob):
         data = self.yolo_object_predictor.infer(blob)
         num, final_boxes, final_scores, final_cls_inds = data
-        final_boxes = np.reshape(final_boxes / ratio, (-1, 4))
+        final_boxes = np.reshape(final_boxes, (-1, 4))
         dets = np.concatenate([final_boxes[:num[0]], np.array(final_scores)[:num[0]].reshape(-1, 1),
                                np.array(final_cls_inds)[:num[0]].reshape(-1, 1)], axis=-1)
         return dets
 
-    def post_process(self, dets, frame):
+    def post_process(self, dets):
         data = ifaces.RoboCompYoloObjects.TData()
         data.objects = []
         data.people = []
@@ -174,8 +300,18 @@ class SpecificWorker(GenericWorker):
                 ibox.bot = int(box[3])
                 data.objects.append(ibox)
 
-        data.objects = self.nms(data.objects)
+        #data.objects = self.nms(data.objects)
         return data
+
+    def preproc(self, image, input_size, swap=(2, 0, 1)):
+        padded_img = np.ones((input_size[0], input_size[1], 3))
+        img = np.array(image).astype(np.float32)
+        padded_img[: int(img.shape[0]), : int(img.shape[1])] = img
+        padded_img = padded_img[:, :, ::-1]
+        padded_img /= 255.0
+        padded_img = padded_img.transpose(swap)
+        padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
+        return padded_img
 
     def nms(self, objects):
         d = defaultdict(list)
@@ -183,7 +319,7 @@ class SpecificWorker(GenericWorker):
             d[obj.type].append(obj)
         removed = []
         for typ, same_type_objs in d.items():
-            power_set = itertools.combinations(same_type_objs, 2)   # possible combs of same type
+            power_set = itertools.combinations(same_type_objs, 2)  # possible combs of same type
             # compute IOU
             for a, b in power_set:
                 p1 = box(a.left, a.top, a.right, a.bot)  # shapely object
@@ -197,22 +333,73 @@ class SpecificWorker(GenericWorker):
                 ret.append(obj)
         return ret
 
-    def show_fps(self):
+    def show_fps(self, alive_time, period):
         if time.time() - self.last_time > 1:
             self.last_time = time.time()
-            print("Freq: ", self.cont, "Hz. Waiting for image")
+            cur_period = int(1000./self.cont)
+            delta = (-1 if (period - cur_period) < -1 else (1 if (period - cur_period) > 1 else 0))
+            print("Freq:", self.cont, "Hz. Alive_time:", alive_time, "ms. Img period:", int(period),
+                  "ms. Curr period:", cur_period, "ms. Inc:", delta, "Timer:", self.thread_period)
+            self.Period = np.clip(self.Period+delta, 0, 200)
+            self.thread_period = np.clip(self.thread_period+delta, 0, 200)
+            self.timer.setInterval(self.Period)
             self.cont = 0
         else:
             self.cont += 1
 
-    def show_data(self, dets, frame):
-        if dets is not None:
-            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-            frame = vis(frame, final_boxes, final_scores, final_cls_inds, conf=0.5,
-                        class_names=self.yolo_object_predictor.class_names)
-        #
-        cv2.imshow("Detected Objects", frame)
-        cv2.waitKey(1)
+    def display_data(self, img, tracked_boxes, tracked_scores, tracked_ids, boxes, cls_ids, scores, conf=0.5, class_names=None):
+        for i in range(len(tracked_boxes)):
+            box = tracked_boxes[i]
+            track_id = int(tracked_ids[i])
+            score = tracked_scores[i]
+            if score < conf:
+                continue
+            x0 = int(box[0])
+            y0 = int(box[1])
+            x1 = int(box[2])
+            y1 = int(box[3])
+
+            color = (_COLORS[track_id] * 255).astype(np.uint8).tolist()
+            text = '{} : {:.1f}% : {}'.format(class_names[0], score * 100, track_id)
+            txt_color = (0, 0, 0) if np.mean(_COLORS[track_id]) > 0.5 else (255, 255, 255)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            txt_size = cv2.getTextSize(text, font, 0.4, 1)[0]
+            cv2.rectangle(img, (x0, y0), (x1, y1), color, 2)
+            txt_bk_color = (_COLORS[track_id] * 255 * 0.7).astype(np.uint8).tolist()
+            cv2.rectangle(
+                img,
+                (x0, y1 - 1),
+                (x0 + txt_size[0] + 1, y1 - int(1.5 * txt_size[1])),
+                txt_bk_color,
+                -1
+            )
+            cv2.putText(img, text, (x0, y1 - txt_size[1]), font, 0.4, txt_color, thickness=1)
+
+        for i in range(len(boxes)):
+            bb = boxes[i]
+            ids = int(cls_ids[i])
+            score = scores[i]
+            x0 = int(bb[0])
+            y0 = int(bb[1])
+            x1 = int(bb[2])
+            y1 = int(bb[3])
+            color = (_COLORS[ids] * 255).astype(np.uint8).tolist()
+            text = '{} : {:.1f}%'.format(class_names[ids], score*100)
+            txt_color = (0, 0, 0) if np.mean(_COLORS[ids]) > 0.5 else (255, 255, 255)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            txt_size = cv2.getTextSize(text, font, 0.4, 1)[0]
+            cv2.rectangle(img, (x0, y0), (x1, y1), color, 2)
+            txt_bk_color = (_COLORS[ids] * 255 * 0.7).astype(np.uint8).tolist()
+            cv2.rectangle(
+                img,
+                (x0, y0 + 1),
+                (x0 + txt_size[0] + 1, y0 + int(1.5 * txt_size[1])),
+                txt_bk_color,
+                -1
+            )
+            cv2.putText(img, text, (x0, y0 + txt_size[1]), font, 0.4, txt_color, thickness=1)
+
+        return img
 
     ############################################################################################
     def startup_check(self):
@@ -265,7 +452,7 @@ class SpecificWorker(GenericWorker):
     #
     def YoloObjects_getYoloObjectNames(self):
         return self.yolo_object_predictor.class_names
-    
+
     # IMPLEMENTATION of getYoloObjects method from YoloObjects interface
     #
     def YoloObjects_getYoloObjects(self):

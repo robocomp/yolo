@@ -19,7 +19,11 @@ module RoboCompYoloObjects
 		int top;
 		int right;
 		int bot;
-		float prob;
+		float score;
+		float depth;
+		float x;
+		float y;
+		float z;
 	};
 	sequence <TBox> TObjects;
 	sequence <string> TObjectNames;

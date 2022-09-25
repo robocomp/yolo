@@ -5,7 +5,7 @@ YoloObjects.Endpoints=tcp -p 10054
 # CameraRGBDSimpleProxy = camerargbdsimple:tcp -h robex.local -p 10095
 CameraRGBDSimpleProxy = camerargbdsimple:tcp -p 10095
 
-display = true
+display = false
 
 Ice.Warn.Connections=0
 Ice.Trace.Network=0

@@ -13,6 +13,20 @@ module RoboCompCameraRGBDSimple
 	exception HardwareFailedException{ string what; };
 	sequence <byte> ImgType;
 	sequence <byte> DepthType;
+	struct Point3D
+	{
+		float x;
+		float y;
+		float z;
+	};
+	sequence <Point3D> PointsType;
+	struct TPoints
+	{
+		PointsType points;
+		long alivetime;
+		float period;
+		bool compressed;
+	};
 	struct TImage
 	{
 		bool compressed;
@@ -49,6 +63,7 @@ module RoboCompCameraRGBDSimple
 		TRGBD getAll (string camera) throws HardwareFailedException;
 		TDepth getDepth (string camera) throws HardwareFailedException;
 		TImage getImage (string camera) throws HardwareFailedException;
+		TPoints getPoints (string camera) throws HardwareFailedException;
 	};
 };
 

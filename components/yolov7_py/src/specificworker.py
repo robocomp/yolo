@@ -168,7 +168,7 @@ class SpecificWorker(GenericWorker):
             self.yolo_object_predictor = BaseEngine(engine_path='yolov7.trt')
 
             # byte tracker
-            self.tracker = BYTETracker(frame_rate=30)
+            #self.tracker = BYTETracker(frame_rate=30)
 
             # Hz
             self.cont = 0
@@ -178,7 +178,9 @@ class SpecificWorker(GenericWorker):
             # camera read thread
             self.read_queue = queue.Queue(1)
             self.event = Event()
-            self.read_thread = Thread(target=self.get_rgb_thread, args=["camera_top", self.event], 
+            # self.read_thread = Thread(target=self.get_rgb_thread, args=["/Shadow/camera_top", self.event],
+            #                           name="read_queue", daemon=True)
+            self.read_thread = Thread(target=self.get_rgbd_thread, args=["/Shadow/camera_top", self.event],
                                       name="read_queue", daemon=True)
             self.read_thread.start()
 
@@ -205,7 +207,7 @@ class SpecificWorker(GenericWorker):
     @QtCore.Slot()
     def compute(self):
         #t1 = time.time()
-        rgb, blob, alive_time, period = self.read_queue.get()
+        rgb, blob, depth, alive_time, period, dfocalx, dfocaly = self.read_queue.get()
         #t2 = time.time()
 
         dets = self.yolov7_objects(blob)
@@ -214,16 +216,19 @@ class SpecificWorker(GenericWorker):
             boxes, scores, cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
             #t3 = time.time()
 
-            tracked_boxes, tracked_scores, tracked_cls_inds, tracked_inds = self.track(boxes, scores, cls_inds)
+            #tracked_boxes, tracked_scores, tracked_cls_inds, tracked_inds = self.track(boxes, scores, cls_inds)
             #t4 = time.time()
 
-            self.objects_write = self.post_process(tracked_boxes, tracked_scores, tracked_cls_inds, tracked_inds)
+            #self.objects_write = self.post_process(tracked_boxes, tracked_scores, tracked_cls_inds, tracked_inds)
+            self.objects_write = self.post_process(boxes, scores, cls_inds, cls_inds, depth, dfocalx, dfocaly)
             #t5 = time.time()
 
             self.objects_write, self.objects_read = self.objects_read, self.objects_write
 
             if self.display:
-                rgb = self.display_data(rgb, tracked_boxes, tracked_scores, tracked_cls_inds, tracked_inds,
+#                rgb = self.display_data(rgb, tracked_boxes, tracked_scores, tracked_cls_inds, tracked_inds,
+#                                        class_names=self.yolo_object_predictor.class_names)
+                rgb = self.display_data(rgb, boxes, scores, cls_inds, cls_inds,
                                         class_names=self.yolo_object_predictor.class_names)
 
         if self.display:
@@ -236,7 +241,7 @@ class SpecificWorker(GenericWorker):
         try:
             self.show_fps(alive_time, period)
         except KeyboardInterrupt:
-            event.set()
+            self.event.set()
 
 
     ###########################################################################################3
@@ -261,6 +266,20 @@ class SpecificWorker(GenericWorker):
                 blob = self.pre_process(frame, (640, 640))
                 delta = int(1000 * time.time() - rgb.alivetime)
                 self.read_queue.put([frame, blob, delta, rgb.period])
+                event.wait(self.thread_period/1000)
+            except:
+                print("Error communicating with CameraRGBDSimple")
+                traceback.print_exc()
+
+    def get_rgbd_thread(self, camera_name: str, event: Event):
+        while not event.isSet():
+            try:
+                rgbd = self.camerargbdsimple_proxy.getAll(camera_name)
+                rgb_frame = np.frombuffer(rgbd.image.image, dtype=np.uint8).reshape((rgbd.image.height, rgbd.image.width, 3))
+                blob = self.pre_process(rgb_frame, (640, 640))  #TODO: change to vars
+                delta = int(1000 * time.time() - rgbd.image.alivetime)  #TODO: one alivetime and period per frame
+                depth_frame = np.frombuffer(rgbd.depth.depth, dtype=np.float32).reshape((rgbd.depth.height, rgbd.depth.width, 1))
+                self.read_queue.put([rgb_frame, blob, depth_frame, delta, rgbd.image.period, rgbd.depth.focalx, rgbd.depth.focaly])
                 event.wait(self.thread_period/1000)
             except:
                 print("Error communicating with CameraRGBDSimple")
@@ -318,8 +337,8 @@ class SpecificWorker(GenericWorker):
             final_ids = np.append(np.full(len(non_people_cls_inds), -1), tracked_ids, axis=0)
             final_cls_ids = np.append(cls_inds[non_people_cls_inds], np.zeros(len(people_inds)), axis=0)
         return final_boxes, final_scores, final_cls_ids, final_ids
-        
-    def post_process(self, final_boxes, final_scores, final_cls_inds, final_inds):
+
+    def post_process(self, final_boxes, final_scores, final_cls_inds, final_inds, depth, focalx, focaly):   # copy to interface
         data = ifaces.RoboCompYoloObjects.TData()
         data.objects = []
         data.people = []
@@ -328,7 +347,6 @@ class SpecificWorker(GenericWorker):
             box = final_boxes[i]
             # if score < conf:
             #    continue
-            # copy to interface
             ibox = ifaces.RoboCompYoloObjects.TBox()
             ibox.type = int(final_cls_inds[i])
             ibox.id = int(final_inds[i])
@@ -337,6 +355,29 @@ class SpecificWorker(GenericWorker):
             ibox.top = int(box[1])
             ibox.right = int(box[2])
             ibox.bot = int(box[3])
+            #compute x,y,z coordinates in camera CS of bbox's center
+            #TODO: scale RGB coordinates into DEPTH coordinates if not equal
+            roi = depth[ibox.top: ibox.top+ibox.bot, ibox.left: ibox.left+ibox.right]
+            cx_roi = int(roi.shape[1]/2)
+            cy_roi = int(roi.shape[0]/2)
+            ibox.depth = float(np.median(roi[cy_roi-20:cy_roi+20, cx_roi]))*1000
+            x = ibox.left + ((ibox.right-ibox.left)/2)
+            y = ibox.top + ((ibox.bot-ibox.top)/2)
+            cx = x - depth.shape[1]/2
+            cy = y - depth.shape[0]/2
+            # if depth plane gives length of optical ray then
+            x = cx * ibox.depth / np.sqrt(cx*cx + focalx*focalx)
+            z = cy * ibox.depth / np.sqrt(cy*cy + focaly*focaly)  # Z upwards
+            proy = np.sqrt(ibox.depth*ibox.depth-z*z)
+            y = np.sqrt(x*x+proy*proy)
+            # if deph plane in RGBD gives Y coordinate then
+            #x = cx * ibox.depth / focalx
+            #z = cy * ibox.depth / focaly  # Z upwards
+            #y = ibox.depth
+            ibox.x = x
+            ibox.y = y
+            ibox.z = z
+            #print(int(ibox.depth), ibox.type, int(ibox.x), int(ibox.y), int(ibox.z), cx)
             data.objects.append(ibox)
 
         #data.objects = self.nms(data.objects)
@@ -381,7 +422,7 @@ class SpecificWorker(GenericWorker):
                 continue
             bb = boxes[i]
             cls_ids = int(cls_inds[i])
-            ids = inds[i]
+            ids = int(inds[i])
             score = scores[i]
             x0 = int(bb[0])
             y0 = int(bb[1])

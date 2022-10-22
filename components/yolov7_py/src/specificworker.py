@@ -220,7 +220,7 @@ class SpecificWorker(GenericWorker):
             #t4 = time.time()
 
             #self.objects_write = self.post_process(tracked_boxes, tracked_scores, tracked_cls_inds, tracked_inds)
-            self.objects_write = self.post_process(boxes, scores, cls_inds, cls_inds, depth, dfocalx, dfocaly)
+            self.objects_write = self.post_process(boxes, scores, cls_inds, cls_inds, depth, dfocalx, dfocaly, rgb)
             #t5 = time.time()
 
             self.objects_write, self.objects_read = self.objects_read, self.objects_write
@@ -338,10 +338,12 @@ class SpecificWorker(GenericWorker):
             final_cls_ids = np.append(cls_inds[non_people_cls_inds], np.zeros(len(people_inds)), axis=0)
         return final_boxes, final_scores, final_cls_ids, final_ids
 
-    def post_process(self, final_boxes, final_scores, final_cls_inds, final_inds, depth, focalx, focaly):   # copy to interface
+    def post_process(self, final_boxes, final_scores, final_cls_inds, final_inds, depth, focalx, focaly, rgb):   # copy to interface
         data = ifaces.RoboCompYoloObjects.TData()
         data.objects = []
         data.people = []
+        depth_to_rgb_factor_rows = rgb.shape[0] // depth.shape[0]
+        depth_to_rgb_factor_cols = rgb.shape[1] // depth.shape[1]
 
         for i in range(len(final_boxes)):
             box = final_boxes[i]
@@ -356,24 +358,29 @@ class SpecificWorker(GenericWorker):
             ibox.right = int(box[2])
             ibox.bot = int(box[3])
             #compute x,y,z coordinates in camera CS of bbox's center
-            #TODO: scale RGB coordinates into DEPTH coordinates if not equal
-            roi = depth[ibox.top: ibox.top+ibox.bot, ibox.left: ibox.left+ibox.right]
+            left = ibox.left // depth_to_rgb_factor_cols
+            right = ibox.right // depth_to_rgb_factor_cols
+            top = ibox.top // depth_to_rgb_factor_rows
+            bot = ibox.bot // depth_to_rgb_factor_rows
+            roi = depth[top: top+bot, left: left+right]
             cx_roi = int(roi.shape[1]/2)
             cy_roi = int(roi.shape[0]/2)
-            ibox.depth = float(np.median(roi[cy_roi-20:cy_roi+20, cx_roi]))*1000
-            x = ibox.left + ((ibox.right-ibox.left)/2)
-            y = ibox.top + ((ibox.bot-ibox.top)/2)
-            cx = x - depth.shape[1]/2
-            cy = y - depth.shape[0]/2
+            ibox.depth = float(np.median(roi[cy_roi-20:cy_roi+20, cx_roi-10:cx_roi+10]))*1000
+            #ibox.depth = float(np.median(roi)) * 1000
+            cx_i = ibox.left + ((right-left)/2)
+            cy_i = ibox.top + ((bot-top)/2)
+            cx = cx_i - depth.shape[1]/2
+            cy = cy_i - depth.shape[0]/2
             # if depth plane gives length of optical ray then
-            x = cx * ibox.depth / np.sqrt(cx*cx + focalx*focalx)
-            z = cy * ibox.depth / np.sqrt(cy*cy + focaly*focaly)  # Z upwards
-            proy = np.sqrt(ibox.depth*ibox.depth-z*z)
-            y = np.sqrt(x*x+proy*proy)
+            # x = cx * ibox.depth / np.sqrt(cx*cx + focalx*focalx)
+            # z = cy * ibox.depth / np.sqrt(cy*cy + focaly*focaly)  # Z upwards
+            # proy = np.sqrt(ibox.depth*ibox.depth-z*z)
+            # y = np.sqrt(x*x+proy*proy)
+
             # if deph plane in RGBD gives Y coordinate then
-            #x = cx * ibox.depth / focalx
-            #z = cy * ibox.depth / focaly  # Z upwards
-            #y = ibox.depth
+            y = ibox.depth
+            x = cx * ibox.depth / focalx
+            z = cy * ibox.depth / focaly  # Z upwards
             ibox.x = x
             ibox.y = y
             ibox.z = z

@@ -358,10 +358,10 @@ class SpecificWorker(GenericWorker):
             ibox.right = int(box[2])
             ibox.bot = int(box[3])
             #compute x,y,z coordinates in camera CS of bbox's center
-            left = ibox.left // depth_to_rgb_factor_cols
-            right = ibox.right // depth_to_rgb_factor_cols
-            top = ibox.top // depth_to_rgb_factor_rows
-            bot = ibox.bot // depth_to_rgb_factor_rows
+            left = int(ibox.left / depth_to_rgb_factor_cols)
+            right = int(ibox.right / depth_to_rgb_factor_cols)
+            top = int(ibox.top / depth_to_rgb_factor_rows)
+            bot = int(ibox.bot / depth_to_rgb_factor_rows)
             roi = depth[top: top+bot, left: left+right]
             cx_roi = int(roi.shape[1]/2)
             cy_roi = int(roi.shape[0]/2)
@@ -375,15 +375,15 @@ class SpecificWorker(GenericWorker):
             cx = cx_i - depth.shape[1]/2
             cy = cy_i - depth.shape[0]/2
             # if depth plane gives length of optical ray then
-            x = cx * ibox.depth / np.sqrt(cx*cx + focalx*focalx)
-            z = cy * ibox.depth / np.sqrt(cy*cy + focaly*focaly)  # Z upwards
-            proy = np.sqrt(ibox.depth*ibox.depth-z*z)
-            y = np.sqrt(x*x+proy*proy)
+            #x = cx * ibox.depth / np.sqrt(cx*cx + focalx*focalx)
+            #z = cy * ibox.depth / np.sqrt(cy*cy + focaly*focaly)  # Z upwards
+            #proy = np.sqrt(ibox.depth*ibox.depth-z*z)
+            #y = np.sqrt(x*x+proy*proy)
 
             # if deph plane in RGBD gives Y coordinate then
-            #y = ibox.depth
-            #x = cx * ibox.depth / focalx
-            #z = cy * ibox.depth / focaly  # Z upwards
+            y = ibox.depth
+            x = cx * ibox.depth / focalx
+            z = cy * ibox.depth / focaly  # Z upwards
             ibox.x = x
             ibox.y = y
             ibox.z = z

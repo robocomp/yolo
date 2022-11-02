@@ -57,6 +57,7 @@ module RoboCompCameraRGBDSimple
 	{
 		TImage image;
 		TDepth depth;
+		TPoints points;
 	};
 	interface CameraRGBDSimple
 	{

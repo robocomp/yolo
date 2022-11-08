@@ -180,7 +180,7 @@ class SpecificWorker(GenericWorker):
             self.event = Event()
             # self.read_thread = Thread(target=self.get_rgb_thread, args=["/Giraff/camera_top", self.event],
             #                           name="read_queue", daemon=True)
-            self.read_thread = Thread(target=self.get_rgbd_thread, args=["/Giraff/camera_top", self.event],
+            self.read_thread = Thread(target=self.get_rgbd_thread, args=["/Shadow/camera_top", self.event],
                                       name="read_queue", daemon=True)
             self.read_thread.start()
 

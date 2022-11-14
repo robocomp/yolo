@@ -342,8 +342,8 @@ class SpecificWorker(GenericWorker):
         data = ifaces.RoboCompYoloObjects.TData()
         data.objects = []
         data.people = []
-        depth_to_rgb_factor_rows = rgb.shape[0] // depth.shape[0]
-        depth_to_rgb_factor_cols = rgb.shape[1] // depth.shape[1]
+        depth_to_rgb_factor_rows = rgb.shape[0] / depth.shape[0]
+        depth_to_rgb_factor_cols = rgb.shape[1] / depth.shape[1]
 
         for i in range(len(final_boxes)):
             box = final_boxes[i]
@@ -365,13 +365,12 @@ class SpecificWorker(GenericWorker):
             roi = depth[top: top+bot, left: left+right]
             cx_roi = int(roi.shape[1]/2)
             cy_roi = int(roi.shape[0]/2)
-            #ibox.depth = float(np.median(roi[cy_roi-20:cy_roi+20, cx_roi-10:cx_roi+10]))*1000
-            ibox.depth = float(np.median(depth[top: top+bot, left: left+right])) * 1000
-            #ibox.depth = float(depth[cy_roi, cx_roi])*1000
+            #ibox.depth = float(np.min(roi[cy_roi-20:cy_roi+20, cx_roi-10:cx_roi+10]))*1000
+            #ibox.depth = float(np.median(depth[top: top+bot, left: left+right])) * 1000
             #ibox.depth = float(np.min(roi)) * 1000
 
-            cx_i = (ibox.left + ibox.right)/2
-            cy_i = (ibox.top + ibox.bot)/2
+            cx_i = int((ibox.left + ibox.right)/2)
+            cy_i = int((ibox.top + ibox.bot)/2)
             cx = cx_i - depth.shape[1]/2
             cy = cy_i - depth.shape[0]/2
             # if depth plane gives length of optical ray then
@@ -381,13 +380,10 @@ class SpecificWorker(GenericWorker):
             #y = np.sqrt(x*x+proy*proy)
 
             # if deph plane in RGBD gives Y coordinate then
-            y = ibox.depth
-            x = cx * ibox.depth / focalx
-            z = cy * ibox.depth / focaly  # Z upwards
-            ibox.x = x
-            ibox.y = y
-            ibox.z = z
-            #print(int(ibox.depth), ibox.type, int(ibox.x), int(ibox.y), int(ibox.z), cx)
+            ibox.depth = float(roi[cy_i, cx_i]) * 1000
+            ibox.y = ibox.depth
+            ibox.x = cx * ibox.depth / focalx
+            ibox.z = -cy * ibox.depth / focaly  # Z upwards
             data.objects.append(ibox)
 
         #data.objects = self.nms(data.objects)

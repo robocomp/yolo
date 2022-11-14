@@ -40,8 +40,8 @@ sys.path.append('/home/robocomp/software/TensorRT-For-YOLO-Series')
 from utils.utils import preproc, vis
 from utils.utils import BaseEngine
 
-sys.path.append('/home/robocomp/software/ByteTrack')
-from yolox.tracker.byte_tracker import BYTETracker
+#sys.path.append('/home/robocomp/software/ByteTrack')
+#from yolox.tracker.byte_tracker import BYTETracker
 
 # from mediapipe.framework.formats import landmark_pb2, detection_pb2, location_data_pb2
 # import mediapipe as mp
@@ -178,7 +178,7 @@ class SpecificWorker(GenericWorker):
             # camera read thread
             self.read_queue = queue.Queue(1)
             self.event = Event()
-            # self.read_thread = Thread(target=self.get_rgb_thread, args=["/Shadow/camera_top", self.event],
+            # self.read_thread = Thread(target=self.get_rgb_thread, args=["/Giraff/camera_top", self.event],
             #                           name="read_queue", daemon=True)
             self.read_thread = Thread(target=self.get_rgbd_thread, args=["/Shadow/camera_top", self.event],
                                       name="read_queue", daemon=True)

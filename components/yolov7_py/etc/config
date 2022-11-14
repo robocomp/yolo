@@ -1,4 +1,4 @@
-# Endpoints for implements interfaces
+# Endpoints to implement interfaces
 YoloObjects.Endpoints=tcp -p 10054
 
 # Proxies for required interfaces

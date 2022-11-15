@@ -380,7 +380,7 @@ class SpecificWorker(GenericWorker):
             #y = np.sqrt(x*x+proy*proy)
 
             # if deph plane in RGBD gives Y coordinate then
-            ibox.depth = float(roi[cy_i, cx_i]) * 1000
+            ibox.depth = float(depth[cy_i, cx_i]) * 1000
             ibox.y = ibox.depth
             ibox.x = cx * ibox.depth / focalx
             ibox.z = -cy * ibox.depth / focaly  # Z upwards

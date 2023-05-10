@@ -1,0 +1,16 @@
+# Endpoints to implement interfaces
+YoloObjects.Endpoints=tcp -p 10054
+
+# Proxies for required interfaces
+# CameraRGBDSimpleProxy = camerargbdsimple:tcp -h robex.local -p 10095
+CameraRGBDSimpleProxy = camerargbdsimple:tcp -p 10095
+
+display = true
+
+Ice.Warn.Connections=0
+Ice.Trace.Network=0
+Ice.Trace.Protocol=0
+Ice.MessageSizeMax=20004800
+
+
+
